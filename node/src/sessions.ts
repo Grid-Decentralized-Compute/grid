@@ -54,16 +54,22 @@ export class SessionManager {
     return this.sessions.get(rentalId);
   }
 
-  /** Proves Docker can hand the GPU to a container before a renter depends on it. */
+  /**
+   * Proves a renter's container can use the GPU before anyone pays for it: runs nvidia-smi inside
+   * the rental image itself. That fails both when Docker cannot pass the GPU through (no NVIDIA
+   * Container Toolkit) and when the image cannot run NVIDIA programs (an Alpine image, for example).
+   */
   async preflightGpu() {
     if (!this.docker) return;
+    const image = this.config.dockerImage;
     try {
-      await run("docker", ["run", "--rm", "--gpus", "all", "--entrypoint", "true", this.config.dockerImage]);
-      log("docker can pass the GPU through");
+      const { stdout } = await run("docker", ["run", "--rm", "--gpus", "all", "--entrypoint", "nvidia-smi", image, "-L"]);
+      log(`GPU works inside ${image}: ${stdout.trim().split("\n")[0]}`);
     } catch (e) {
       throw new Error(
-        `nvidia-smi found a GPU but Docker cannot pass it through (${(e as Error).message.split("\n")[0]}). ` +
-          "Install the NVIDIA Container Toolkit, or set GRID_SIMULATE=1.",
+        `nvidia-smi found a GPU but it does not work inside ${image} (${(e as Error).message.split("\n")[0]}). ` +
+          "Install the NVIDIA Container Toolkit, and use a CUDA image such as node/rental-image " +
+          "(docker build -t grid-rental node/rental-image, then GRID_DOCKER_IMAGE=grid-rental), or set GRID_SIMULATE=1.",
       );
     }
   }

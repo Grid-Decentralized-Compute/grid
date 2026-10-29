@@ -9,7 +9,17 @@ The node is the program a host runs next to its GPU. It lists the machine, serve
 * Docker. On Linux, the NVIDIA Container Toolkit to pass GPUs into containers (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker). The node checks this at startup.
 * For direct rentals: an https address for the node's API and a reachable SSH port. Without them the node still works for the swarm through a relay.
 
-## Start
+## Quick setup on Ubuntu
+
+On Ubuntu 22.04 or 24.04 with an NVIDIA driver 570 or newer, one script does the rest: it installs Docker, the NVIDIA Container Toolkit, Node.js and cloudflared, builds the rental image and checks the GPU works inside it, writes `node/.env` with a new host wallet, and installs the node as a systemd service.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Grid-Decentralized-Compute/grid/main/scripts/host-setup.sh | bash
+```
+
+It is safe to run again. Its settings and every step are described at the top of [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh).
+
+## Start by hand
 
 ```bash
 git clone https://github.com/Grid-Decentralized-Compute/grid
@@ -29,7 +39,19 @@ Every setting is described in [Node configuration](../reference/config.md).
 | Swarm work | Yes | Yes |
 | Can relay for others | With `GRID_RELAY=1` | No |
 
-A Cloudflare Tunnel or a Tailscale Funnel in front of port 7777 gives a home machine an https address. SSH is raw TCP, so it needs a port forward on your router (or a Tailscale Funnel TCP route) and `GRID_SSH_HOST` set to your public IP or DNS name.
+A Cloudflare Tunnel or a Tailscale Funnel in front of port 7777 gives a home machine an https address. SSH and the peer-to-peer port are raw TCP, which such a tunnel does not carry: forward 2222 and 4001 on your router, and set `GRID_SSH_HOST` to your public IP and `GRID_P2P_ANNOUNCE` to `/ip4/<public IP>/tcp/4001`. Otherwise both are derived from `GRID_PUBLIC_URL`, which points at the tunnel.
+
+## GPU rentals need a CUDA image
+
+Renters log in to a container started from `GRID_DOCKER_IMAGE`. The default, `linuxserver/openssh-server`, is built on Alpine Linux, which cannot run `nvidia-smi` or CUDA programs. On a GPU host, build the image in `node/rental-image` (Ubuntu 24.04, CUDA 12.8 with cuDNN, Python, SSH on 2222) and use it:
+
+```bash
+docker build -t grid-rental node/rental-image
+# node/.env
+GRID_DOCKER_IMAGE=grid-rental
+```
+
+At startup the node runs `nvidia-smi` inside the rental image and refuses to list the machine if the GPU does not work there.
 
 ## What the node does
 

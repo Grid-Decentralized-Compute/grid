@@ -22,7 +22,7 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_ALLOW_HTTP` | unset | `1` accepts a plain http `GRID_PUBLIC_URL`. For experiments only |
 | `GRID_SSH_HOST` | host of `GRID_PUBLIC_URL` | Where renters SSH in |
 | `GRID_SSH_PORT` | `2222` | SSH port mapped to the rental container |
-| `GRID_DOCKER_IMAGE` | `lscr.io/linuxserver/openssh-server:latest` | Image for direct-rental containers |
+| `GRID_DOCKER_IMAGE` | `lscr.io/linuxserver/openssh-server:latest` | Image for direct-rental containers. GPU hosts need a CUDA image: build `node/rental-image` and set `grid-rental` |
 | `GRID_SIMULATE` | auto | `1` runs without Docker or a GPU, for trying the market. Unset detects both |
 
 ## Swarm
