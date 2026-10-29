@@ -1,6 +1,4 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
-# GitBook site sync: the published docs are the docs/ folder, read as one book (its SUMMARY.md
-# is the table of contents). Schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
   title: Grid
   structure:
