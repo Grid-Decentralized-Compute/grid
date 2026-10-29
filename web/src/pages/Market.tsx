@@ -2,11 +2,13 @@ import { useState } from "react";
 import type { ContractFunctionReturnType } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { gridMarketAbi, parseMetadata, stakeRegistryAbi, TRIAL_MAX_DEPOSIT_WEI } from "@grid/shared";
-import { Badge, Button, Card, ErrorText, Input, Muted } from "../components/ui";
+import { NotLive } from "../components/NotLive";
+import { Button, ErrorText, Input, linkClass, Status, type Tone } from "../components/ui";
 import { useDeployment } from "../contracts";
-import { fmtEth, shortAddr } from "../lib/format";
+import { fmtEth, fmtGb, shortAddr, shortCpu } from "../lib/format";
 import { endpointBlocked, useHealth } from "../lib/hooks";
 import { useTx } from "../lib/useTx";
+import { Link, navigate } from "../router";
 
 type Listing = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getListings">[number];
 
@@ -14,9 +16,13 @@ type Listing = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getList
 const PAGE = 50n;
 const MAX_HOURS = 720;
 
-export function Market({ onRented }: { onRented: () => void }) {
+/** Desktop column template, shared by the header and every row. */
+const COLS =
+  "sm:grid sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_7rem_6rem_4.5rem] sm:items-center sm:gap-6";
+
+export function Market() {
   const deployment = useDeployment();
-  const { data: count } = useReadContract({
+  const { data: count, error: countError } = useReadContract({
     abi: gridMarketAbi,
     address: deployment?.GridMarket,
     functionName: "machineCount",
@@ -30,7 +36,7 @@ export function Market({ onRented }: { onRented: () => void }) {
   });
   const offsets =
     count === undefined ? [] : Array.from({ length: Number((count + PAGE - 1n) / PAGE) }, (_, i) => BigInt(i) * PAGE);
-  const { data: pages, isLoading, error } = useReadContracts({
+  const { data: pages, error: pageError } = useReadContracts({
     contracts: deployment
       ? offsets.map(
           (offset) =>
@@ -40,56 +46,101 @@ export function Market({ onRented }: { onRented: () => void }) {
     query: { enabled: !!deployment && offsets.length > 0, refetchInterval: 5_000 },
   });
 
-  if (!deployment) return null;
-  if (count === undefined || (offsets.length > 0 && isLoading && !pages)) return <Muted>Loading machines…</Muted>;
-  if (error) return <ErrorText>{error.message}</ErrorText>;
-
-  const items = offsets.length === 0 ? [] : (pages ?? []).flatMap((p) => (p.status === "success" ? [...p.result] : []));
-  const bondingOff = minBond === 0n;
+  const items = (pages ?? [])
+    .flatMap((p) => (p.status === "success" ? [...p.result] : []))
+    // Rentable machines first, cheapest first within each group.
+    .sort((a, b) =>
+      a.rentable !== b.rentable ? (a.rentable ? -1 : 1) : a.machine.pricePerHour < b.machine.pricePerHour ? -1 : 1,
+    );
+  const loading = !!deployment && (count === undefined || (offsets.length > 0 && !pages)) && !countError;
+  const error = countError ?? pageError;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold">Machines</h1>
-        <span className="text-sm text-zinc-500">
-          {items.length} listed · paid up front in ETH, billed per minute, unused time refunded
-        </span>
-      </div>
-      {items.length === 0 && (
-        <Card>
-          <Muted>
-            Nothing listed yet. Start a host node (<code>npm run node</code>) and it shows up here within a few seconds.
-          </Muted>
-        </Card>
-      )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {items.map((item) => (
-          <MachineCard key={item.id.toString()} item={item} bondingOff={bondingOff} onRented={onRented} />
-        ))}
-      </div>
-    </div>
+    <>
+      <section>
+        <h1 className="max-w-[19ch] text-[32px] font-medium leading-[1.1] tracking-[-0.028em] sm:text-[40px]">
+          Rent GPU time from the people who own the GPUs.
+        </h1>
+        <p className="mt-5 max-w-[52ch] text-[16px] text-muted">
+          Pay ETH into a contract on Robinhood Chain and connect straight to the owner's machine. Billed by the minute,
+          unused time refunded, no company in between.
+        </p>
+      </section>
+
+      <section className="mt-16 sm:mt-20">
+        <div className="flex items-baseline justify-between gap-4 pb-3">
+          <h2 className="text-[13px] font-medium">
+            Machines{deployment && !loading && <span className="tnum ml-2 font-normal text-faint">{items.length}</span>}
+          </h2>
+          <Link href="/host" className="text-[13px] text-muted transition-colors hover:text-ink">
+            List a machine
+          </Link>
+        </div>
+        <div className={`hidden border-y border-line py-2 text-[12px] text-faint ${COLS}`}>
+          <span>Machine</span>
+          <span>GPU</span>
+          <span>System</span>
+          <span>Status</span>
+          <span className="text-right">ETH / hour</span>
+          <span />
+        </div>
+
+        {!deployment ? (
+          <div className="border-b border-line sm:border-t-0">
+            <NotLive />
+          </div>
+        ) : error ? (
+          <ErrorText className="py-8">Could not read the market: {error.message.split("\n")[0]}</ErrorText>
+        ) : loading ? (
+          <p className="border-b border-line py-8 text-muted">Reading the market…</p>
+        ) : items.length === 0 ? (
+          <p className="border-b border-line py-8 text-muted">
+            No machines are listed yet.{" "}
+            <Link href="/host" className={linkClass}>
+              List yours
+            </Link>
+          </p>
+        ) : (
+          items.map((item) => <MachineRow key={item.id.toString()} item={item} bondingOff={minBond === 0n} />)
+        )}
+      </section>
+    </>
   );
 }
 
-function MachineCard({ item, bondingOff, onRented }: { item: Listing; bondingOff: boolean; onRented: () => void }) {
+function MachineRow({ item, bondingOff }: { item: Listing; bondingOff: boolean }) {
   const { id, machine, rentable, hostBonded } = item;
   const meta = parseMetadata(machine.metadata);
   const blocked = endpointBlocked(meta?.endpoint);
   const health = useHealth(meta?.endpoint);
-  const online = health.isSuccess;
   const { address } = useAccount();
   const deployment = useDeployment()!;
   const tx = useTx();
+  const [open, setOpen] = useState(false);
   const [hours, setHours] = useState(1);
 
-  const name = meta?.name || `Machine #${id}`;
   const busy = machine.activeRental !== 0n;
   const isMine = !!address && address.toLowerCase() === machine.host.toLowerCase();
-  // An unbonded host may only hold TRIAL_MAX_DEPOSIT per rental (GridMarket.TRIAL_MAX_DEPOSIT).
+  // An unbonded host may hold at most TRIAL_MAX_DEPOSIT per rental (GridMarket.TRIAL_MAX_DEPOSIT).
   const capped = !bondingOff && !hostBonded;
   const maxHours = Math.min(MAX_HOURS, capped ? Number(TRIAL_MAX_DEPOSIT_WEI / machine.pricePerHour) : MAX_HOURS);
-  const canOffer = rentable && !isMine && !blocked && maxHours >= 1;
+  const online = health.isSuccess;
+  const canRent = rentable && !isMine && !blocked && online && maxHours >= 1;
   const total = machine.pricePerHour * BigInt(Math.max(1, hours));
+
+  const [tone, label]: [Tone, string] = !machine.available
+    ? ["off", "Paused"]
+    : busy
+      ? ["busy", "Rented"]
+      : blocked
+        ? ["off", "Unreachable"]
+        : health.isPending
+          ? ["off", "Checking"]
+          : !online
+            ? ["off", "Offline"]
+            : !rentable
+              ? ["off", "Needs bond"]
+              : ["ok", "Available"];
 
   async function rent() {
     const ok = await tx.run("Renting…", [
@@ -102,96 +153,77 @@ function MachineCard({ item, bondingOff, onRented }: { item: Listing; bondingOff
           value: total,
         }),
     ]);
-    if (ok) onRented();
+    if (ok) navigate("/rentals");
   }
 
-  const unavailableReason = isMine
-    ? "your machine"
-    : busy
-      ? "currently rented"
-      : !machine.available
-        ? "paused by host"
-        : blocked
-          ? "host must publish an https:// endpoint"
-          : !rentable
-            ? "host needs a GRID bond"
-            : "price is above the trial cap for an unbonded host";
+  const gpu = meta ? (meta.gpuCount > 0 ? `${meta.gpuCount > 1 ? `${meta.gpuCount}× ` : ""}${meta.gpu}` : "No GPU") : "—";
+  const host = [shortAddr(machine.host), isMine ? "you" : null, bondingOff ? null : hostBonded ? "bonded" : "trial"]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Card className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
+    <div className="border-b border-line">
+      <div className={`flex flex-col gap-1 py-4 ${COLS}`}>
         <div className="min-w-0">
-          <div className="truncate font-semibold">
-            {name} <span className="text-xs font-normal text-zinc-500">#{id.toString()}</span>
-          </div>
-          <div className="text-sm text-zinc-400">
-            host <span className="font-mono">{shortAddr(machine.host)}</span>
-            {isMine && " (you)"}
-          </div>
+          <div className="truncate font-medium">{meta?.name || `Machine ${id}`}</div>
+          <div className="mt-0.5 truncate font-mono text-[12px] text-faint">{host}</div>
         </div>
-        <div className="flex flex-wrap justify-end gap-1">
-          {blocked ? (
-            <Badge tone="bad">unreachable (http)</Badge>
-          ) : (
-            <Badge tone={online ? "good" : "bad"}>{online ? "online" : "offline"}</Badge>
-          )}
-          {bondingOff ? (
-            <Badge>no bond needed</Badge>
-          ) : (
-            <Badge tone={hostBonded ? "good" : "warn"}>{hostBonded ? "bonded" : "trial"}</Badge>
-          )}
-          {busy && <Badge>rented</Badge>}
-          {!machine.available && <Badge>paused</Badge>}
+        <div className="min-w-0">
+          <div className="truncate">{gpu}</div>
+          {meta && meta.gpuCount > 0 && <div className="tnum mt-0.5 text-[13px] text-muted">{meta.vramGb} GB VRAM</div>}
+        </div>
+        <div className="min-w-0">
+          <div className="tnum truncate">{meta ? `${fmtGb(meta.ramGb)} RAM · ${fmtGb(meta.diskGb)} disk` : "—"}</div>
+          {meta?.cpu && <div className="mt-0.5 truncate text-[13px] text-muted">{shortCpu(meta.cpu)}</div>}
+        </div>
+        <div className="mt-3 flex items-center gap-5 sm:contents">
+          <Status tone={tone}>{label}</Status>
+          <div className="tnum ml-auto font-mono sm:ml-0 sm:text-right">
+            {fmtEth(machine.pricePerHour)}
+            <span className="text-faint sm:hidden"> ETH/h</span>
+          </div>
+          <div className="sm:text-right">
+            {canRent && (
+              <Button variant={open ? "quiet" : "secondary"} onClick={() => setOpen(!open)} aria-expanded={open}>
+                {open ? "Close" : "Rent"}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {meta ? (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-zinc-500">GPU</dt>
-          <dd>{meta.gpuCount > 0 ? `${meta.gpuCount}× ${meta.gpu}, ${meta.vramGb} GB` : meta.gpu || "none"}</dd>
-          <dt className="text-zinc-500">CPU</dt>
-          <dd className="truncate" title={meta.cpu}>
-            {meta.cpu || "—"}
-          </dd>
-          <dt className="text-zinc-500">RAM / disk</dt>
-          <dd>
-            {meta.ramGb} GB / {meta.diskGb} GB
-          </dd>
-          <dt className="text-zinc-500">OS</dt>
-          <dd>{meta.os || "—"}</dd>
-        </dl>
-      ) : (
-        <Muted>No machine details published.</Muted>
-      )}
-
-      <div className="flex flex-wrap items-end justify-between gap-3 border-t border-zinc-800 pt-3">
-        <div className="text-2xl font-semibold">
-          {fmtEth(machine.pricePerHour)} <span className="text-sm font-normal text-zinc-400">ETH / hour</span>
-        </div>
-        {canOffer ? (
-          <div className="flex items-center gap-2">
+      {open && canRent && (
+        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-md bg-wash px-4 py-3 text-[13px]">
+          <label className="flex items-center gap-2 text-muted">
+            Hours
             <Input
               type="number"
               min={1}
               max={maxHours}
               value={hours}
               onChange={(e) => setHours(Math.min(maxHours, Math.max(1, Math.floor(Number(e.target.value) || 1))))}
-              className="w-20"
+              className="w-16"
+              autoFocus
             />
-            <span className="text-sm text-zinc-400">h</span>
-            <Button onClick={rent} disabled={!address || !!tx.pending}>
-              {tx.pending ?? `Rent for ${fmtEth(total)} ETH`}
-            </Button>
+          </label>
+          <span className="tnum font-mono text-muted">
+            × {fmtEth(machine.pricePerHour)} = <span className="font-medium text-ink">{fmtEth(total)} ETH</span>
+          </span>
+          <span className="text-faint">
+            {capped ? `Trial host: up to ${maxHours} h per rental.` : "Unused time is refunded."}
+          </span>
+          <div className="w-full sm:ml-auto sm:w-auto">
+            {address ? (
+              <Button onClick={rent} disabled={!!tx.pending} className="w-full sm:w-auto">
+                {tx.pending ?? "Confirm rental"}
+              </Button>
+            ) : (
+              <span className="text-muted">Connect a wallet to rent.</span>
+            )}
           </div>
-        ) : (
-          <span className="text-sm text-zinc-500">{unavailableReason}</span>
-        )}
-      </div>
-      {canOffer && capped && (
-        <Muted>Trial host (no GRID bond yet): at most {maxHours} h per rental.</Muted>
+          <ErrorText className="w-full">{tx.error}</ErrorText>
+        </div>
       )}
-      {!address && canOffer && <Muted>Connect a wallet to rent.</Muted>}
-      <ErrorText>{tx.error}</ErrorText>
-    </Card>
+    </div>
   );
 }

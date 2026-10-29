@@ -20,7 +20,23 @@ export function fmtDuration(seconds: number): string {
   return `${s}s`;
 }
 
-export const fmtDate = (unix: number | bigint) => new Date(Number(unix) * 1000).toLocaleString();
+export const fmtDate = (unix: number | bigint) =>
+  new Date(Number(unix) * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+/** 512 → "512 GB", 2000 → "2 TB" */
+export const fmtGb = (gb: number) =>
+  gb >= 1000 ? `${Number((gb / 1000).toFixed(1))} TB` : `${gb} GB`;
+
+/** "11th Gen Intel(R) Core(TM) i7-11370H @ 3.30GHz" → "Intel Core i7-11370H" */
+export function shortCpu(cpu: string): string {
+  return cpu
+    .replace(/\((R|TM)\)/gi, "")
+    .replace(/\s*@.*$/, "")
+    .replace(/\b\d+(st|nd|rd|th) Gen\s+/i, "")
+    .replace(/\b(CPU|Processor)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /** viem/wagmi errors carry a one-line `shortMessage`; fall back to the plain message. */
 export function shortError(e: unknown): string {

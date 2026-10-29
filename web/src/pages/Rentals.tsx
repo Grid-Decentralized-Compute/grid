@@ -10,13 +10,17 @@ import {
   isSecureEndpoint,
   parseMetadata,
 } from "@grid/shared";
-import { Badge, Button, Card, ErrorText, Muted, Stat } from "../components/ui";
+import { NotLive } from "../components/NotLive";
+import { Button, ErrorText, linkClass, Page, Stat, Status } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtDate, fmtDuration, fmtEth, shortError } from "../lib/format";
 import { useNow } from "../lib/hooks";
 import { useTx } from "../lib/useTx";
+import { Link } from "../router";
 
 type RentalView = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getRentalsOf">[number];
+
+const LEDE = "Machines rented from this wallet. End a rental early and the unused time comes back to you.";
 
 export function Rentals() {
   const deployment = useDeployment();
@@ -38,26 +42,29 @@ export function Rentals() {
   });
   const tx = useTx();
 
-  if (!deployment) return null;
+  if (!deployment) {
+    return (
+      <Page title="Rentals" lede={LEDE}>
+        <NotLive />
+      </Page>
+    );
+  }
   if (!address) {
     return (
-      <Card>
-        <Muted>Connect a wallet to see your rentals.</Muted>
-      </Card>
+      <Page title="Rentals" lede={LEDE}>
+        <p className="text-muted">Connect a wallet to see its rentals.</p>
+      </Page>
     );
   }
 
   const list = [...(rentals ?? [])].reverse();
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">My rentals</h1>
-
+    <Page title="Rentals" lede={LEDE}>
       {owed !== undefined && owed > 0n && (
-        <Card className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="font-medium">{fmtEth(owed)} ETH to withdraw</div>
-            <Muted>Refunds for unused time sit in the contract until you pull them.</Muted>
-          </div>
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-md bg-wash px-4 py-3 text-[13px]">
+          <span>
+            <span className="tnum font-mono font-medium">{fmtEth(owed)} ETH</span> refunded and ready to withdraw.
+          </span>
           <Button
             disabled={!!tx.pending}
             onClick={() =>
@@ -68,24 +75,29 @@ export function Rentals() {
           >
             {tx.pending ?? "Withdraw"}
           </Button>
-        </Card>
+          <ErrorText className="w-full">{tx.error}</ErrorText>
+        </div>
       )}
-      <ErrorText>{tx.error}</ErrorText>
 
-      {isLoading && <Muted>Loading…</Muted>}
-      {!isLoading && list.length === 0 && (
-        <Card>
-          <Muted>No rentals yet. Pick a machine in the market.</Muted>
-        </Card>
-      )}
-      {list.map((view) => (
-        <RentalCard key={view.id.toString()} view={view} />
-      ))}
-    </div>
+      <div className="border-t border-line">
+        {isLoading ? (
+          <p className="py-8 text-muted">Reading your rentals…</p>
+        ) : list.length === 0 ? (
+          <p className="py-8 text-muted">
+            No rentals yet.{" "}
+            <Link href="/" className={linkClass}>
+              Find a machine
+            </Link>
+          </p>
+        ) : (
+          list.map((view) => <RentalRow key={view.id.toString()} view={view} />)
+        )}
+      </div>
+    </Page>
   );
 }
 
-function RentalCard({ view }: { view: RentalView }) {
+function RentalRow({ view }: { view: RentalView }) {
   const { id, rental, machine } = view;
   const meta = parseMetadata(machine.metadata);
   const now = useNow();
@@ -107,7 +119,7 @@ function RentalCard({ view }: { view: RentalView }) {
     if (!meta) return;
     if (!isSecureEndpoint(meta.endpoint)) {
       // The reply carries the SSH password; never fetch it over plain http from a remote host.
-      setAccessError("This host publishes a plain http:// endpoint, so the password would travel unencrypted. Ask the host to serve https.");
+      setAccessError("This host publishes a plain http address, so the password would travel unencrypted.");
       return;
     }
     setFetching(true);
@@ -123,7 +135,7 @@ function RentalCard({ view }: { view: RentalView }) {
         signal: AbortSignal.timeout(8000),
       });
       const reply = await res.json();
-      if (!res.ok) throw new Error(reply.error ?? `host replied ${res.status}`);
+      if (!res.ok) throw new Error(reply.error ?? `The host replied ${res.status}`);
       setAccess(reply as AccessInfo);
     } catch (e) {
       setAccessError(shortError(e));
@@ -138,34 +150,33 @@ function RentalCard({ view }: { view: RentalView }) {
     ]);
   }
 
+  const gpu = meta && meta.gpuCount > 0 ? `${meta.gpuCount > 1 ? `${meta.gpuCount}× ` : ""}${meta.gpu}` : null;
+
   return (
-    <Card className="space-y-3">
+    <div className="border-b border-line py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold">
-            {meta?.name || `Machine #${rental.machineId}`}{" "}
-            <span className="text-xs font-normal text-zinc-500">rental #{id.toString()}</span>
-          </div>
-          <div className="text-sm text-zinc-400">
-            {meta && meta.gpuCount > 0 ? `${meta.gpuCount}× ${meta.gpu}` : (meta?.gpu ?? "")} · started {fmtDate(rental.startedAt)}
+        <div className="min-w-0">
+          <div className="font-medium">{meta?.name || `Machine ${rental.machineId}`}</div>
+          <div className="mt-0.5 text-[13px] text-muted">
+            {[gpu, `started ${fmtDate(rental.startedAt)}`, `rental ${id}`].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <Badge tone={!active ? "neutral" : expired ? "warn" : "good"}>
-          {!active ? "ended" : expired ? "time used up" : "active"}
-        </Badge>
+        <Status tone={!active ? "off" : expired ? "busy" : "ok"}>
+          {!active ? "Ended" : expired ? "Time used up" : "Running"}
+        </Status>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Paid" value={`${fmtEth(rental.deposit)} ETH`} />
-        <Stat label="Booked" value={`${rental.paidHours.toString()} h`} />
-        <Stat label="Used so far" value={cost !== null ? `${fmtEth(cost)} ETH` : "settled"} />
-        <Stat label="Time left" value={active ? fmtDuration(endsAt - now) : "—"} />
-      </div>
+      <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+        <Stat label="Paid">{fmtEth(rental.deposit)} ETH</Stat>
+        <Stat label="Booked">{rental.paidHours.toString()} h</Stat>
+        <Stat label="Used so far">{cost !== null ? `${fmtEth(cost)} ETH` : "Settled"}</Stat>
+        <Stat label="Time left">{active ? fmtDuration(endsAt - now) : "—"}</Stat>
+      </dl>
 
       {active && (
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap gap-2">
           <Button onClick={getAccess} disabled={fetching || !meta}>
-            {fetching ? "Signing…" : "Get SSH access"}
+            {fetching ? "Waiting for signature…" : access ? "Refresh SSH access" : "Get SSH access"}
           </Button>
           <Button variant="danger" onClick={end} disabled={!!tx.pending}>
             {tx.pending ?? (expired ? "Settle" : "End rental")}
@@ -174,20 +185,20 @@ function RentalCard({ view }: { view: RentalView }) {
       )}
 
       {access && active && (
-        <div className="space-y-1 rounded-md bg-zinc-950 p-3 font-mono text-sm">
+        <div className="mt-4 overflow-x-auto rounded-md bg-wash px-4 py-3 font-mono text-[13px] leading-relaxed">
           <div>
-            <span className="text-zinc-500">$ </span>
+            <span className="select-none text-faint">$ </span>
             {access.command}
           </div>
           <div>
-            <span className="text-zinc-500">password: </span>
+            <span className="select-none text-faint">password </span>
             {access.password}
           </div>
-          <div className="text-xs text-zinc-500">access ends {fmtDate(access.endsAt)}</div>
+          <div className="text-faint">access ends {fmtDate(access.endsAt)}</div>
         </div>
       )}
-      <ErrorText>{accessError}</ErrorText>
-      <ErrorText>{tx.error}</ErrorText>
-    </Card>
+      <ErrorText className="mt-3">{accessError}</ErrorText>
+      <ErrorText className="mt-3">{tx.error}</ErrorText>
+    </div>
   );
 }

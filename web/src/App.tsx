@@ -1,70 +1,85 @@
-import { Component, type ReactNode, useState } from "react";
-import { useChainId, useChains } from "wagmi";
+import { Component, type ReactNode, useEffect } from "react";
 import { Wallet } from "./components/Wallet";
-import { Card } from "./components/ui";
-import { useDeployment } from "./contracts";
+import { About } from "./pages/About";
 import { Host } from "./pages/Host";
 import { Market } from "./pages/Market";
 import { Rentals } from "./pages/Rentals";
+import { Link, usePath } from "./router";
+import { SOURCE_URL } from "./lib/links";
 
-const tabs = [
-  ["market", "Market"],
-  ["rentals", "My rentals"],
-  ["host", "Host"],
-] as const;
-type Tab = (typeof tabs)[number][0];
+const pages: Record<string, { label: string; title: string; render: () => ReactNode }> = {
+  "/": { label: "Market", title: "Grid", render: () => <Market /> },
+  "/rentals": { label: "Rentals", title: "Rentals · Grid", render: () => <Rentals /> },
+  "/host": { label: "Host", title: "Host · Grid", render: () => <Host /> },
+  "/about": { label: "About", title: "About · Grid", render: () => <About /> },
+};
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("market");
-  const deployment = useDeployment();
-  const chainId = useChainId();
-  const chain = useChains().find((c) => c.id === chainId);
+  const path = usePath();
+  const page = pages[path.replace(/\/+$/, "") || "/"];
+
+  useEffect(() => {
+    document.title = page?.title ?? "Not found · Grid";
+  }, [page]);
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
-          <div className="text-lg font-semibold tracking-tight">
-            Grid <span className="text-sm font-normal text-zinc-500">decentralized compute</span>
-          </div>
-          <nav className="flex gap-1">
-            {tabs.map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`rounded-md px-3 py-1.5 text-sm ${tab === id ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-white"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-          <div className="ml-auto">
-            <Wallet />
-          </div>
+    <div className="mx-auto flex min-h-screen max-w-[1040px] flex-col px-5 sm:px-8">
+      <header className="flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
+        <Link href="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
+          <Mark />
+          grid
+        </Link>
+        <nav aria-label="Pages" className="order-last flex w-full gap-6 text-[13px] sm:order-none sm:w-auto">
+          {Object.entries(pages).map(([href, p]) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={page === p ? "page" : undefined}
+              className={page === p ? "text-ink" : "text-muted transition-colors hover:text-ink"}
+            >
+              {p.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="ml-auto">
+          <Wallet />
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        {!deployment && (
-          <Card className="mb-4 border-amber-500/40">
-            <p className="text-sm text-amber-200">
-              Grid&apos;s contracts are not deployed on {chain?.name ?? `chain ${chainId}`}. Switch chains in the wallet
-              menu, or for a local chain run <code className="rounded bg-zinc-800 px-1">npm run deploy:local</code>.
+      <main className="flex-1 pb-28 pt-12 sm:pt-20">
+        <ErrorBoundary key={path}>
+          {page ? (
+            page.render()
+          ) : (
+            <p className="text-muted">
+              There is no page at {path}.{" "}
+              <Link href="/" className="text-ink underline underline-offset-[3px]">
+                Go to the market
+              </Link>
             </p>
-          </Card>
-        )}
-        <ErrorBoundary key={tab}>
-          {tab === "market" && <Market onRented={() => setTab("rentals")} />}
-          {tab === "rentals" && <Rentals />}
-          {tab === "host" && <Host />}
+          )}
         </ErrorBoundary>
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-zinc-600">
-        Listings and payments live on-chain in GridMarket; hosts bond GRID in StakeRegistry; access details come straight
-        from each host&apos;s node. No Grid server in between.
+      <footer className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line py-6 text-[12px] text-faint">
+        <span>A peer-to-peer market for compute on Robinhood Chain.</span>
+        <a href={SOURCE_URL} className="transition-colors hover:text-ink sm:ml-auto">
+          Source
+        </a>
       </footer>
     </div>
+  );
+}
+
+function Mark() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+      {[0, 6, 12].flatMap((y) =>
+        [0, 6, 12].map((x) => (
+          <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" rx="1" fill="currentColor" opacity={x === 6 && y === 6 ? 0.3 : 1} />
+        )),
+      )}
+    </svg>
   );
 }
 
@@ -77,13 +92,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { message: string
   }
 
   render() {
-    if (this.state.message) {
-      return (
-        <Card className="border-red-500/40">
-          <p className="text-sm text-red-300">This page could not be displayed: {this.state.message}</p>
-        </Card>
-      );
-    }
+    if (this.state.message) return <p className="text-[13px] text-bad">This page could not be shown: {this.state.message}</p>;
     return this.props.children;
   }
 }

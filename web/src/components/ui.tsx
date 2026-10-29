@@ -1,11 +1,12 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "danger";
+type Variant = "primary" | "secondary" | "quiet" | "danger";
 
-const buttonStyles: Record<Variant, string> = {
-  primary: "bg-emerald-500 text-zinc-950 hover:bg-emerald-400",
-  secondary: "bg-zinc-800 text-zinc-100 hover:bg-zinc-700",
-  danger: "bg-red-500/90 text-white hover:bg-red-500",
+const variants: Record<Variant, string> = {
+  primary: "h-8 px-3 bg-ink text-white hover:bg-neutral-700",
+  secondary: "h-8 px-3 border border-line bg-white text-ink hover:border-neutral-400",
+  quiet: "h-auto px-0 text-muted hover:text-ink",
+  danger: "h-8 px-3 border border-line bg-white text-bad hover:border-bad/40",
 };
 
 export function Button({
@@ -16,7 +17,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${buttonStyles[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40 ${variants[variant]} ${className}`}
     />
   );
 }
@@ -25,39 +26,62 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
   return (
     <input
       {...props}
-      className={`rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm outline-none focus:border-emerald-500 ${className}`}
+      className={`tnum h-8 rounded-md border border-line bg-white px-2.5 font-mono text-[13px] outline-none transition-colors focus:border-ink ${className}`}
     />
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-lg border border-zinc-800 bg-zinc-900 p-4 ${className}`}>{children}</div>;
-}
+const tones = { ok: "bg-ok", busy: "bg-busy", off: "bg-neutral-300", bad: "bg-bad" };
+export type Tone = keyof typeof tones;
 
-const badgeStyles = {
-  neutral: "bg-zinc-800 text-zinc-300",
-  good: "bg-emerald-500/15 text-emerald-300",
-  warn: "bg-amber-500/15 text-amber-300",
-  bad: "bg-red-500/15 text-red-300",
-};
-
-export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: keyof typeof badgeStyles }) {
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyles[tone]}`}>{children}</span>;
-}
-
-export function Stat({ label, value }: { label: string; value: ReactNode }) {
+export function Status({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="text-base font-medium">{value}</div>
+    <span className="inline-flex items-center gap-2 text-[13px] text-muted">
+      <span className={`size-1.5 shrink-0 rounded-full ${tones[tone]}`} aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
+/** A page: a small title, an optional one-line lede, then content. */
+export function Page({ title, lede, children }: { title: string; lede?: ReactNode; children: ReactNode }) {
+  return (
+    <>
+      <h1 className="text-[22px] font-medium tracking-[-0.015em]">{title}</h1>
+      {lede && <p className="mt-2 max-w-[58ch] text-muted">{lede}</p>}
+      <div className="mt-12">{children}</div>
+    </>
+  );
+}
+
+/** A titled block within a page, ruled underneath its title. */
+export function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="mt-14 first:mt-0">
+      <div className="flex min-h-8 items-center justify-between gap-4 border-b border-line pb-2">
+        <h2 className="text-[13px] font-medium">{title}</h2>
+        {aside}
+      </div>
+      <div className="pt-5">{children}</div>
+    </section>
+  );
+}
+
+export function Stat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[12px] text-faint">{label}</dt>
+      <dd className="tnum mt-0.5 truncate font-mono text-[14px]">{children}</dd>
     </div>
   );
 }
 
-export function ErrorText({ children }: { children: ReactNode }) {
-  return children ? <p className="break-words text-sm text-red-400">{children}</p> : null;
+export function ErrorText({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return children ? <p className={`break-words text-[13px] text-bad ${className}`}>{children}</p> : null;
 }
 
-export function Muted({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-zinc-400">{children}</p>;
+export function Note({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <p className={`text-[14px] text-muted ${className}`}>{children}</p>;
 }
+
+export const linkClass = "text-ink underline decoration-neutral-300 underline-offset-[3px] hover:decoration-ink";
