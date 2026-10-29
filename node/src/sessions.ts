@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import os from "node:os";
 import { promisify } from "node:util";
 import type { AccessInfo } from "@grid/shared";
 import type { Config } from "./config";
@@ -17,6 +18,21 @@ export type Session = {
 
 const containerName = (rentalId: bigint) => `grid-rental-${rentalId}`;
 
+/** A docker network with no route to the host's LAN (created by scripts/host-setup.sh). */
+export const RENTAL_NETWORK = "grid-rental";
+
+/**
+ * What the docker CLI gets in its environment: enough to find the daemon and nothing else, so the
+ * host wallet key in GRID_PRIVATE_KEY never reaches a child process.
+ */
+export function dockerEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const keep = ["PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR", "SystemRoot"];
+  return { ...Object.fromEntries(keep.filter((k) => process.env[k]).map((k) => [k, process.env[k]!])), ...extra };
+}
+
+/** Removes the SSH password from any text that might be logged. */
+export const redact = (text: string) => text.replace(/USER_PASSWORD=\S+/g, "USER_PASSWORD=***");
+
 /**
  * One SSH container per rental. In simulated mode nothing is started and the
  * access details are fake, which is enough to try the whole market flow.
@@ -24,6 +40,7 @@ const containerName = (rentalId: bigint) => `grid-rental-${rentalId}`;
 export class SessionManager {
   private readonly sessions = new Map<bigint, Session>();
   private docker = false;
+  private isolatedNetwork = false;
 
   constructor(private readonly config: Config) {}
 
@@ -33,9 +50,16 @@ export class SessionManager {
       return;
     }
     try {
-      const { stdout } = await run("docker", ["version", "--format", "{{.Server.Version}}"]);
+      const { stdout } = await run("docker", ["version", "--format", "{{.Server.Version}}"], { env: dockerEnv() });
       this.docker = true;
       log(`mode: docker ${stdout.trim()}`);
+      this.isolatedNetwork = await run("docker", ["network", "inspect", RENTAL_NETWORK], { env: dockerEnv() }).then(
+        () => true,
+        () => false,
+      );
+      if (!this.isolatedNetwork) {
+        log(`warning: no "${RENTAL_NETWORK}" docker network, so renters' containers can reach this machine's LAN. scripts/host-setup.sh creates it.`);
+      }
     } catch {
       if (this.config.simulate === false) throw new Error("Docker not found; install Docker or set GRID_SIMULATE=1");
       log("mode: simulated — docker not found, so rentals get placeholder access details");
@@ -63,7 +87,7 @@ export class SessionManager {
     if (!this.docker) return;
     const image = this.config.dockerImage;
     try {
-      const { stdout } = await run("docker", ["run", "--rm", "--gpus", "all", "--entrypoint", "nvidia-smi", image, "-L"]);
+      const { stdout } = await run("docker", ["run", "--rm", "--gpus", "all", "--entrypoint", "nvidia-smi", image, "-L"], { env: dockerEnv() });
       log(`GPU works inside ${image}: ${stdout.trim().split("\n")[0]}`);
     } catch (e) {
       throw new Error(
@@ -77,12 +101,12 @@ export class SessionManager {
   /** Removes rental containers left behind by an earlier run, except the one for `keep` (still rented). */
   async sweep(keep: bigint | null) {
     if (!this.docker) return;
-    const { stdout } = await run("docker", ["ps", "-a", "--filter", "name=^grid-rental-", "--format", "{{.ID}} {{.Names}}"]);
+    const { stdout } = await run("docker", ["ps", "-a", "--filter", "name=^grid-rental-", "--format", "{{.ID}} {{.Names}}"], { env: dockerEnv() });
     for (const line of stdout.split("\n")) {
       const [id, name] = line.trim().split(/\s+/);
       if (!id) continue;
       if (keep !== null && name === containerName(keep)) continue;
-      await run("docker", ["rm", "-f", id]).catch(() => {});
+      await run("docker", ["rm", "-f", id], { env: dockerEnv() }).catch(() => {});
       log(`removed stale container ${name}`);
     }
   }
@@ -107,17 +131,32 @@ export class SessionManager {
         password = running.password;
         log(`adopted running container ${name}`);
       } else {
-        await run("docker", ["rm", "-f", name]).catch(() => {});
+        await run("docker", ["rm", "-f", name], { env: dockerEnv() }).catch(() => {});
+        // The renter is root inside the container; these limits keep them from taking the host
+        // down with it (memory, processes, CPU, logs), and the isolated network keeps them off
+        // the host's LAN. The password reaches docker through its environment, not argv, so it
+        // never shows in `ps` or in an error message.
+        const memMb = Math.max(1024, Math.floor((os.totalmem() * 0.8) / 2 ** 20));
         const args = [
           "run", "-d", "--name", name,
           "-p", `${port}:2222`,
+          "--pids-limit", "4096",
+          "--memory", `${memMb}m`, "--memory-swap", `${memMb}m`,
+          "--cpus", String(Math.max(1, os.cpus().length - 1)),
+          "--shm-size", `${Math.min(8192, Math.floor(memMb / 2))}m`,
+          "--ulimit", "core=0",
+          "--cap-drop", "NET_RAW", "--cap-drop", "MKNOD", "--cap-drop", "AUDIT_WRITE", "--cap-drop", "SETFCAP",
+          "--log-driver", "local", "--log-opt", "max-size=20m", "--log-opt", "max-file=2",
+          ...(this.isolatedNetwork ? ["--network", RENTAL_NETWORK] : []),
           "-e", "PUID=1000", "-e", "PGID=1000",
-          "-e", `USER_NAME=${user}`, "-e", `USER_PASSWORD=${password}`,
+          "-e", `USER_NAME=${user}`, "-e", "USER_PASSWORD",
           "-e", "PASSWORD_ACCESS=true", "-e", "SUDO_ACCESS=true",
         ];
         if (gpu) args.push("--gpus", "all");
         args.push(this.config.dockerImage);
-        const { stdout } = await run("docker", args);
+        const { stdout } = await run("docker", args, { env: dockerEnv({ USER_PASSWORD: password }) }).catch((e: Error) => {
+          throw new Error(redact(e.message));
+        });
         containerId = stdout.trim();
         log(`started container ${name} (${containerId.slice(0, 12)})`);
       }
@@ -148,7 +187,7 @@ export class SessionManager {
     if (!session) return;
     this.sessions.delete(rentalId);
     if (session.containerId) {
-      await run("docker", ["rm", "-f", session.containerId]).catch((e: Error) => log(`docker rm failed: ${e.message}`));
+      await run("docker", ["rm", "-f", session.containerId], { env: dockerEnv() }).catch((e: Error) => log(`docker rm failed: ${e.message}`));
       log(`stopped container for rental #${rentalId}`);
     }
   }
@@ -166,7 +205,7 @@ export class SessionManager {
     try {
       const { stdout } = await run("docker", [
         "inspect", "--format", "{{.State.Running}} {{.Id}}{{range .Config.Env}}\n{{.}}{{end}}", name,
-      ]);
+      ], { env: dockerEnv() });
       const [first, ...env] = stdout.split("\n");
       const [running, id] = first.trim().split(" ");
       const password = env.map((l) => l.trim()).find((l) => l.startsWith("USER_PASSWORD="))?.slice("USER_PASSWORD=".length);

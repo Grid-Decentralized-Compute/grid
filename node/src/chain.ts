@@ -1,6 +1,6 @@
 import { type Abi, type Address, createPublicClient, createWalletClient, http, parseEventLogs, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { gridMarketAbi, parseMetadata } from "@grid/shared";
+import { gridMarketAbi, isSecureEndpoint, parseMetadata } from "@grid/shared";
 import type { Config } from "./config";
 import { log } from "./log";
 import { readState, writeState } from "./state";
@@ -76,10 +76,36 @@ export class Chain {
     return id;
   }
 
-  /** libp2p addresses other hosts published in their listings: where to join the network. */
+  /**
+   * libp2p addresses other hosts published in their listings: where to join the network. The
+   * newest listings first, at most 50 addresses, so a burst of old junk listings cannot crowd out
+   * live ones (parseMetadata already drops malformed addresses).
+   */
   async listedPeerAddrs(): Promise<string[]> {
-    const page = await this.publicClient.readContract({ ...this.market, functionName: "getListings", args: [0n, 200n] });
-    return page.flatMap(({ machine }) => parseMetadata(machine.metadata)?.p2p?.addrs ?? []);
+    const listings = await this.recentListings();
+    return listings.flatMap(({ machine }) => parseMetadata(machine.metadata)?.p2p?.addrs ?? []).slice(0, 50);
+  }
+
+  /**
+   * Relays as their own listings declare them: peer id -> https URL. A node behind a router only
+   * trusts a relay that appears here, so a peer cannot just announce itself as one and capture the
+   * node's results address.
+   */
+  async listedRelays(): Promise<Map<string, string>> {
+    const relays = new Map<string, string>();
+    for (const { machine } of await this.recentListings()) {
+      const meta = parseMetadata(machine.metadata);
+      const secure = meta?.endpoint.startsWith("https://") || (this.config.allowPrivatePeers && meta && isSecureEndpoint(meta.endpoint));
+      if (meta?.p2p?.relay && secure && meta.endpoint.length <= 200) relays.set(meta.p2p.peer, meta.endpoint);
+    }
+    return relays;
+  }
+
+  private async recentListings() {
+    const count = await this.publicClient.readContract({ ...this.market, functionName: "machineCount" });
+    const offset = count > 200n ? count - 200n : 0n;
+    const page = await this.publicClient.readContract({ ...this.market, functionName: "getListings", args: [offset, 200n] });
+    return [...page].reverse();
   }
 
   async setAvailable(id: bigint, available: boolean) {

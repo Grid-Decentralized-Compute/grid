@@ -1,4 +1,3 @@
-import { hostname } from "node:os";
 import { resolve } from "node:path";
 import { type Address, isAddress, parseEther } from "viem";
 import { chainById, deployments, type GridChain, isSecureEndpoint } from "@grid/shared";
@@ -43,6 +42,12 @@ export type Config = {
   p2pBootstrap: string[];
   /** Serve as a relay: forward circuits for NAT'd peers and their HTTP through /p2p/<peer>. */
   relay: boolean;
+  /** Address the HTTP API listens on; 127.0.0.1 when it is only reached through a local tunnel. */
+  bindHost: string;
+  /** Dial and accept peers on private networks (local testing only). */
+  allowPrivatePeers: boolean;
+  /** Hours a swarm job's outputs are kept for renters to fetch before they are deleted. */
+  swarmKeepHours: number;
 };
 
 /** anvil account #1 — the default host on a local chain (account #0 deploys, #2 and #3 are the web's dev wallets). */
@@ -103,7 +108,8 @@ export function loadConfig(): Config {
     privateKey: env("GRID_PRIVATE_KEY", chainId === 31337 ? ANVIL_HOST_KEY : undefined) as `0x${string}`,
     market,
     stake,
-    name: env("GRID_NAME", hostname()),
+    // Never the computer's hostname by default: it is published on-chain and often carries a name.
+    name: env("GRID_NAME", "grid-host"),
     pricePerHourWei: parseEther(env("GRID_PRICE_PER_HOUR", "0.001")),
     port,
     publicUrl,
@@ -122,6 +128,9 @@ export function loadConfig(): Config {
     p2pAnnounce: list(process.env.GRID_P2P_ANNOUNCE) ?? (url ? [announceFor(url.hostname, p2pPort)] : []),
     p2pBootstrap: list(process.env.GRID_BOOTSTRAP) ?? [],
     relay,
+    bindHost: env("GRID_BIND", "0.0.0.0"),
+    allowPrivatePeers: chainId === 31337 || process.env.GRID_ALLOW_PRIVATE_PEERS === "1",
+    swarmKeepHours: Math.max(1, Number(env("GRID_SWARM_KEEP_HOURS", "72"))),
   };
 }
 

@@ -31,13 +31,26 @@ async function main() {
 
   // Join the peer-to-peer network. Peers listed on-chain are the way in; GRID_BOOTSTRAP adds more.
   const p2p = await P2P.start(config, chain);
-  await p2p.dial([...config.p2pBootstrap, ...(await chain.listedPeerAddrs())]);
+  // Listings are written by strangers: nothing read from them may stop the node from starting.
+  const listedAddrs = await chain.listedPeerAddrs().catch((e) => {
+    log(`p2p: could not read listed peers: ${firstLine(e)}`);
+    return [] as string[];
+  });
+  await p2p.dial([...config.p2pBootstrap, ...listedAddrs]).catch((e) => log(`p2p: dialing failed: ${firstLine(e)}`));
+
+  // Relays as their own listings declare them, refreshed every minute; only these are trusted.
+  let listedRelays = new Map<string, string>();
+  const refreshRelays = async () => {
+    listedRelays = await chain.listedRelays().catch(() => listedRelays);
+  };
+  await refreshRelays();
+  setInterval(() => void refreshRelays(), 60_000);
 
   // Where renters reach this node: its own URL, or the gateway of a relay it is connected to.
   const direct = config.publicUrl !== null;
   const reachableAt = () => {
     if (config.publicUrl) return config.publicUrl;
-    const relay = p2p.connectedRelay();
+    const relay = p2p.connectedRelay(listedRelays);
     return relay ? `${relay}/p2p/${p2p.peerId}` : null;
   };
   if (!direct) {
@@ -67,8 +80,15 @@ async function main() {
   const activeAtStart = activeOf(await chain.getMachine(machineId));
   await sessions.sweep(activeAtStart);
 
-  const swarm = config.swarm ? new SwarmWorker(config, chain, sessions.mode === "docker", hardware.gpuCount > 0) : null;
-  if (swarm) await swarm.register(endpoint);
+  // Swarm work stops the moment a direct rental starts on this machine: the renter comes first.
+  const rentalStarted = async () => activeOf(await chain.getMachine(machineId)) !== null;
+  const swarm = config.swarm
+    ? new SwarmWorker(config, chain, sessions.mode === "docker", hardware.gpuCount > 0, rentalStarted)
+    : null;
+  if (swarm) {
+    await swarm.sweep();
+    await swarm.register(endpoint);
+  }
   else log("swarm: off (GRID_SWARM=0 or no SwarmMarket on this chain)");
 
   startServer({
@@ -81,6 +101,9 @@ async function main() {
     swarm,
     p2p,
     relay: config.relay,
+    chainId: config.chain.id,
+    market: config.market,
+    bindHost: config.bindHost,
   });
 
   p2p.startHeartbeats(() => ({
@@ -188,6 +211,10 @@ function activeOf(machine: { activeRental: bigint }): bigint | null {
 function firstLine(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)).split("\n")[0];
 }
+
+// A stray rejection is logged, never fatal: a node that dies on one bad message can be taken
+// offline by anyone who sends it.
+process.on("unhandledRejection", (e) => log(`unhandled: ${firstLine(e)}`));
 
 main().catch((e) => {
   console.error(e instanceof Error ? e.message : e);

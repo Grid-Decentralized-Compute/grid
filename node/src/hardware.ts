@@ -15,7 +15,8 @@ export async function probeHardware(simulate: boolean): Promise<Hardware> {
     cpu: os.cpus()[0]?.model?.trim() ?? "unknown CPU",
     ramGb: Math.round(os.totalmem() / 2 ** 30),
     diskGb: await diskGb(),
-    os: `${os.platform()} ${os.release()}`,
+    // Only the platform: an exact kernel version next to a public IP tells an attacker which exploits to try.
+    os: os.platform(),
   };
   if (simulate) return { ...base, gpu: "Simulated RTX 4090", vramGb: 24, gpuCount: 1 };
 

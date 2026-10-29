@@ -14,13 +14,14 @@ import { peerIdFromString } from "@libp2p/peer-id";
 import { ping } from "@libp2p/ping";
 import { tcp } from "@libp2p/tcp";
 import { lpStream } from "@libp2p/utils";
-import { multiaddr } from "@multiformats/multiaddr";
+import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import { createLibp2p } from "libp2p";
 import { verifyMessage } from "viem";
 import {
   HEARTBEAT_SECONDS,
   HEARTBEAT_TTL_SECONDS,
   heartbeatMessage,
+  isPrivateHost,
   P2P_DHT_PROTOCOL,
   P2P_HEARTBEAT_TOPIC,
   P2P_HTTP_PROTOCOL,
@@ -38,6 +39,12 @@ export type HttpHandler = (req: WireRequest) => Promise<WireResponse>;
 /** Largest request or response the gateway carries (a task output is at most 1 MB). */
 const MAX_FRAME = 2 * 1024 * 1024;
 const FORWARD_TIMEOUT_MS = 15_000;
+/** Most peers dialled at once from listings and bootstrap addresses. */
+const MAX_DIALS = 50;
+/** A heartbeat is a few hundred bytes; anything far larger is junk. */
+const MAX_HEARTBEAT_BYTES = 2048;
+/** Most peers remembered at once, so a flood of throwaway identities cannot grow memory without end. */
+const MAX_HEARD = 2048;
 
 type Heard = Omit<PeerHeartbeat, "sig"> & { seen: number };
 
@@ -85,23 +92,33 @@ export class P2P {
     return this.config.p2pAnnounce.map((a) => `${a}/p2p/${this.peerId}`);
   }
 
-  /** Dials peers by multiaddr, ignoring ones that fail or are this node. */
+  /**
+   * Dials peers by multiaddr, at most MAX_DIALS of them, ignoring ones that are malformed, fail or
+   * are this node. Addresses come from strangers' listings, so none of this may throw.
+   */
   async dial(addrs: string[]) {
+    const targets = [...new Set(addrs)].filter((a) => !a.endsWith(`/p2p/${this.peerId}`)).slice(0, MAX_DIALS);
     await Promise.all(
-      addrs
-        .filter((a) => !a.endsWith(`/p2p/${this.peerId}`))
-        .map((a) =>
-          this.node.dial(multiaddr(a), { signal: AbortSignal.timeout(8_000) }).catch((e: Error) => {
-            log(`p2p: could not reach ${a}: ${e.message.split("\n")[0]}`);
-          }),
-        ),
+      targets.map(async (a) => {
+        try {
+          await this.node.dial(multiaddr(a), { signal: AbortSignal.timeout(8_000) });
+        } catch (e) {
+          log(`p2p: could not reach ${clean(a)}: ${clean((e as Error).message.split("\n")[0])}`);
+        }
+      }),
     );
   }
 
-  /** A relay this node is connected to, by its public URL (for nodes without one of their own). */
-  connectedRelay(): string | null {
+  /**
+   * A relay this node is connected to, by its public URL (for nodes without one of their own). Only
+   * relays whose own on-chain listing says they relay, at that same URL, are trusted: otherwise any
+   * connected peer could claim to be one and capture this node's results address.
+   */
+  connectedRelay(listed: Map<string, string>): string | null {
     const connected = new Set(this.node.getPeers().map(String));
-    for (const h of this.online()) if (h.relay && connected.has(h.peer)) return h.relay;
+    for (const h of this.online()) {
+      if (h.relay && connected.has(h.peer) && listed.get(h.peer) === h.relay) return h.relay;
+    }
     return null;
   }
 
@@ -132,9 +149,16 @@ export class P2P {
     const stream = await this.node.dialProtocol(peerIdFromString(peer), P2P_HTTP_PROTOCOL, { signal });
     const lp = lpStream(stream, { maxDataLength: MAX_FRAME });
     await lp.write(new TextEncoder().encode(JSON.stringify(req)), { signal });
-    const res = JSON.parse(new TextDecoder().decode((await lp.read({ signal })).subarray())) as WireResponse;
+    const raw = JSON.parse(new TextDecoder().decode((await lp.read({ signal })).subarray())) as unknown;
     await stream.close().catch(() => {});
-    return res;
+    // The answer comes from a stranger: only a well-formed status and string body are passed on,
+    // always as JSON or plain text, so a peer can neither crash this relay nor serve a page from it.
+    const r = raw as Partial<WireResponse> | null;
+    if (!r || !Number.isInteger(r.status) || r.status! < 200 || r.status! > 599 || typeof r.body !== "string") {
+      throw new Error("malformed reply");
+    }
+    const contentType = r.contentType === "application/json" ? "application/json" : "text/plain; charset=utf-8";
+    return { status: r.status!, contentType, body: r.body };
   }
 
   /** Starts announcing this node every HEARTBEAT_SECONDS with whatever `state` returns. */
@@ -163,21 +187,33 @@ export class P2P {
     await this.node.stop();
   }
 
-  /** Accepts a heartbeat only when the wallet signature checks out and the gossip sender is that peer. */
+  /**
+   * Accepts a heartbeat only when it is small and well-formed, the wallet signature checks out and
+   * the gossip sender is that peer. Cheap checks run before the signature check.
+   */
   private async onHeartbeat(data: Uint8Array, from: string | null) {
     try {
+      if (data.length > MAX_HEARTBEAT_BYTES) return;
       const msg = JSON.parse(new TextDecoder().decode(data)) as PeerHeartbeat;
-      if (msg.v !== 1 || msg.peer !== from) return;
+      if (!wellFormed(msg) || msg.peer !== from) return;
       const { sig, ...body } = msg;
       if (Math.abs(Date.now() / 1000 - body.ts) > HEARTBEAT_TTL_SECONDS) return;
       const ok = await verifyMessage({ address: body.host, message: heartbeatMessage(body), signature: sig });
       if (!ok) return;
+      this.prune();
       const isNew = !this.heard.has(body.peer);
+      if (isNew && this.heard.size >= MAX_HEARD) return;
       this.heard.set(body.peer, { ...body, seen: Math.floor(Date.now() / 1000) });
-      if (isNew) log(`p2p: heard ${body.name} (${short(body.peer)})${body.relay ? ", a relay" : ""}`);
+      if (isNew) log(`p2p: heard ${clean(body.name)} (${short(body.peer)})${body.relay ? ", a relay" : ""}`);
     } catch {
       // malformed heartbeat: ignore it
     }
+  }
+
+  /** Forgets peers not heard from within the heartbeat TTL. */
+  private prune() {
+    const cutoff = Date.now() / 1000 - HEARTBEAT_TTL_SECONDS;
+    for (const [peer, h] of this.heard) if (h.seen < cutoff && peer !== this.peerId) this.heard.delete(peer);
   }
 }
 
@@ -189,6 +225,7 @@ async function createNode(config: Config, privateKey: PrivateKey) {
       announce: config.p2pAnnounce,
     },
     transports: [tcp(), circuitRelayTransport()],
+    connectionGater: privateAddressGater(config.allowPrivatePeers),
     connectionEncrypters: [noise()],
     streamMuxers: [yamux()],
     services: {
@@ -216,3 +253,34 @@ async function loadKey(stateDir: string): Promise<PrivateKey> {
 }
 
 const short = (peer: string) => `${peer.slice(0, 8)}…${peer.slice(-4)}`;
+
+/** Strangers' text goes into logs only without control characters (no terminal or log injection). */
+const clean = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f]/g, "?").slice(0, 200);
+
+const str = (v: unknown, max: number) => typeof v === "string" && v.length <= max;
+const url = (v: unknown) => v === null || (str(v, 200) && /^https?:\/\/[^\s]+$/.test(v as string));
+
+/** Every field of a heartbeat has the type and size it should, before anything else looks at it. */
+function wellFormed(m: PeerHeartbeat): boolean {
+  return (
+    !!m && typeof m === "object" && m.v === 1 &&
+    str(m.peer, 64) && /^0x[0-9a-fA-F]{40}$/.test(String(m.host)) && str(m.name, 64) &&
+    url(m.endpoint) && url(m.relay) && typeof m.direct === "boolean" && typeof m.busy === "boolean" &&
+    Number.isInteger(m.ts) && /^0x[0-9a-fA-F]{130}$/.test(String(m.sig))
+  );
+}
+
+/**
+ * Refuses to dial private, loopback and link-local addresses (outside local testing). Peer
+ * addresses come from strangers' listings and heartbeats; dialing them would let a listing point
+ * this node at services on its own network.
+ */
+function privateAddressGater(allow: boolean) {
+  return {
+    denyDialMultiaddr: async (ma: Multiaddr) => {
+      if (allow) return false;
+      const host = ma.getComponents().find((c) => ["ip4", "ip6", "dns", "dns4", "dns6"].includes(c.name))?.value;
+      return host === undefined ? false : isPrivateHost(host);
+    },
+  };
+}

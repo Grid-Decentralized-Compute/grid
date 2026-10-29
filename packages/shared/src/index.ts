@@ -105,9 +105,41 @@ export function parseMetadata(json: string): MachineMetadata | null {
 function parseP2p(v: unknown): MachineMetadata["p2p"] {
   if (!v || typeof v !== "object") return undefined;
   const o = v as Record<string, unknown>;
-  if (typeof o.peer !== "string") return undefined;
-  const addrs = Array.isArray(o.addrs) ? o.addrs.filter((a): a is string => typeof a === "string").slice(0, 8) : [];
-  return { peer: o.peer.slice(0, 128), addrs, relay: o.relay === true, direct: o.direct !== false };
+  if (typeof o.peer !== "string" || !PEER_ID.test(o.peer)) return undefined;
+  // Only well-formed TCP multiaddrs: a malformed one would make every node that dials it throw.
+  const addrs = Array.isArray(o.addrs)
+    ? o.addrs.filter((a): a is string => typeof a === "string" && a.length <= 200 && PEER_ADDR.test(a)).slice(0, 8)
+    : [];
+  return { peer: o.peer, addrs, relay: o.relay === true, direct: o.direct !== false };
+}
+
+const PEER_ID = /^[1-9A-HJ-NP-Za-km-z]{40,64}$/;
+const PEER_ADDR = /^\/(ip4|ip6|dns4|dns6|dns)\/[A-Za-z0-9.:\-]{1,253}\/tcp\/\d{1,5}(\/p2p\/[1-9A-HJ-NP-Za-km-z]{40,64})?$/;
+
+/**
+ * Whether a host name or IP literal points into a private, loopback, link-local or otherwise
+ * non-public network. Endpoints and peer addresses come from strangers' listings; following them
+ * there would let a listing probe the machine's own network (SSRF).
+ */
+export function isPrivateHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".lan")) return true;
+  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/) ?? h.match(/^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return (
+      a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19))
+    );
+  }
+  if (h.includes(":")) {
+    return h === "::" || h === "::1" || /^f[cd][0-9a-f]{0,2}:/.test(h) || /^fe[89ab][0-9a-f]?:/.test(h) || h.startsWith("::ffff:");
+  }
+  return false;
 }
 
 /**
@@ -148,12 +180,15 @@ export function isSecureEndpoint(endpoint: string): boolean {
   }
 }
 
-/** The message a renter signs to prove to a host that they hold a rental. */
-export const accessMessage = (rentalId: bigint | number | string, timestamp: number) =>
-  `grid-access:${rentalId}:${timestamp}`;
+/**
+ * The message a renter signs to prove to a host that they hold a rental. It names the chain and
+ * the market, so a signature made for one deployment can never be replayed against another.
+ */
+export const accessMessage = (a: { chainId: number; market: string; rentalId: bigint | number | string; ts: number }) =>
+  `grid-access\nchain:${a.chainId}\nmarket:${a.market.toLowerCase()}\nrental:${a.rentalId}\nts:${a.ts}`;
 
-/** How long a signed access message stays valid, in seconds. */
-export const ACCESS_MESSAGE_TTL_SECONDS = 300;
+/** How long a signed access message stays valid, in seconds, either side of the host's clock. */
+export const ACCESS_MESSAGE_TTL_SECONDS = 120;
 
 /** Body of POST <endpoint>/access/:rentalId */
 export type AccessRequest = { ts: number; sig: `0x${string}` };
@@ -168,6 +203,30 @@ export type AccessInfo = {
   command: string;
   endsAt: number;
 };
+
+/**
+ * Checks a host's reply to POST /access field by field. The host is a stranger: only a plain host
+ * name or IP, a port, a Unix user name and a printable password are accepted, and the SSH command
+ * is rebuilt from them (see sshCommand) instead of taken from the reply, so a host cannot slip
+ * options such as ProxyCommand into what a person or an agent runs.
+ */
+export function parseAccessInfo(raw: unknown): AccessInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const ok =
+    typeof o.host === "string" && /^[A-Za-z0-9.:-]{1,253}$/.test(o.host) && !o.host.startsWith("-") &&
+    Number.isInteger(o.port) && (o.port as number) >= 1 && (o.port as number) <= 65535 &&
+    typeof o.user === "string" && /^[a-z_][a-z0-9_-]{0,31}$/.test(o.user) &&
+    typeof o.password === "string" && /^[\x21-\x7e]{1,128}$/.test(o.password) &&
+    Number.isInteger(o.endsAt);
+  if (!ok) return null;
+  const a = { rentalId: String(o.rentalId ?? ""), host: o.host as string, port: o.port as number, user: o.user as string, password: o.password as string, endsAt: o.endsAt as number };
+  return { ...a, command: sshCommand(a) };
+}
+
+/** The SSH command for a rental, built only from validated fields. */
+export const sshCommand = (a: { host: string; port: number; user: string }) =>
+  `ssh -p ${a.port} ${a.user}@${a.host.includes(":") ? `[${a.host}]` : a.host}`;
 
 /** Reply of GET <endpoint>/health. */
 export type HealthInfo = {

@@ -31,6 +31,8 @@ PermitRootLogin no
 PasswordAuthentication $password_auth
 KbdInteractiveAuthentication no
 AllowUsers $user
+MaxAuthTries 3
+LoginGraceTime 20
 X11Forwarding no
 ClientAliveInterval 60
 EOF

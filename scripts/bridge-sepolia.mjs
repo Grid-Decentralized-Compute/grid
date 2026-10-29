@@ -1,5 +1,5 @@
 // Moves Sepolia ETH onto Robinhood Chain testnet through the chain's own deposit contract, for the
-// deployer key in contracts/.env (or any key in PRIVATE_KEY). An address is the same on both chains,
+// deployer key in contracts/.env (or the key in GRID_BRIDGE_PRIVATE_KEY). An address is the same on both chains,
 // so the ETH lands at the same address on the testnet about ten minutes later.
 //
 //   node scripts/bridge-sepolia.mjs              shows balances and what would be sent
@@ -28,7 +28,8 @@ const testnet = defineChain({
 const inboxAbi = [{ type: "function", name: "depositEth", stateMutability: "payable", inputs: [], outputs: [{ type: "uint256" }] }];
 
 function deployerKey() {
-  if (process.env.PRIVATE_KEY) return process.env.PRIVATE_KEY;
+  // A dedicated name, so an unrelated PRIVATE_KEY in the shell is never bridged by accident.
+  if (process.env.GRID_BRIDGE_PRIVATE_KEY) return process.env.GRID_BRIDGE_PRIVATE_KEY;
   const env = readFileSync(new URL("../contracts/.env", import.meta.url), "utf8");
   const line = env.split(/\r?\n/).find((l) => l.startsWith("PRIVATE_KEY="));
   if (!line) throw new Error("No PRIVATE_KEY in contracts/.env");
@@ -58,6 +59,14 @@ if (amount <= 0n || amount + RESERVE > onSepolia) {
 if (!send) {
   console.log(`would bridge      ${formatEther(amount)} ETH (run again with --send)`);
   process.exit(0);
+}
+
+// A contract or delegated (EIP-7702) account is credited at an aliased address on the testnet,
+// which nobody controls: only plain accounts may deposit.
+const code = await l1.getCode({ address: account.address });
+if (code && code !== "0x") {
+  console.log("refusing: this address has code on Sepolia, so the deposit would land at an alias nobody controls");
+  process.exit(1);
 }
 
 const wallet = createWalletClient({ account, chain: sepolia, transport: http(SEPOLIA_RPC) });
