@@ -8,6 +8,8 @@ server sits in between. There are two ways to rent:
 - **Swarm**: one job split into independent tasks and spread across many hosts at once. Every task
   runs on two hosts and is paid only when their outputs match; a third host breaks ties.
 
+**Site:** [gridcompute.net](https://gridcompute.net) · **Docs:** [grid-compute.gitbook.io/docs](https://grid-compute.gitbook.io/docs) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
+
 ## Direct rental
 
 1. A host runs `node/` on a machine. It publishes the machine (GPU, RAM, price per hour and the

@@ -6,7 +6,7 @@ Grid lets people rent computing time from the people who own the machines. It ha
 
 ![The Grid network: renters, hosts and a relay connected peer to peer, with listings, escrow, result hashes and bonds held by contracts on Robinhood Chain](.gitbook/assets/network.png)
 
-**Site:** [grid-5y8.pages.dev](https://grid-5y8.pages.dev) · **Source:** [github.com/Grid-Decentralized-Compute/grid](https://github.com/Grid-Decentralized-Compute/grid) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
+**Site:** [gridcompute.net](https://gridcompute.net) · **Source:** [github.com/Grid-Decentralized-Compute/grid](https://github.com/Grid-Decentralized-Compute/grid) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
 
 ## Two ways to rent
 
