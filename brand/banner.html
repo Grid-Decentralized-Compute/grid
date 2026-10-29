@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Newsreader:opsz,wght@6..72,300&display=block"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Newsreader:opsz,wght@6..72,300&display=block"
       rel="stylesheet"
     />
     <style>
@@ -26,7 +26,7 @@
       .copy {
         position: absolute;
         left: 132px;
-        top: 112px;
+        top: 104px;
         color: #f3f3f0;
       }
       .wordmark {
@@ -37,14 +37,14 @@
         letter-spacing: -0.02em;
       }
       .line {
-        margin-top: 22px;
+        margin-top: 20px;
         font-family: "Geist", sans-serif;
-        font-size: 27px;
-        color: #c3c5cb;
-        letter-spacing: -0.005em;
+        font-size: 32px;
+        color: #e7e7e2;
+        letter-spacing: -0.012em;
       }
       .engraved {
-        margin-top: 18px;
+        margin-top: 16px;
         font-family: "Geist", sans-serif;
         font-weight: 500;
         font-size: 12.5px;
@@ -54,18 +54,16 @@
       }
       .legend {
         position: absolute;
-        right: 52px;
-        bottom: 30px;
+        right: 40px;
+        top: 18px;
         display: flex;
         gap: 22px;
-        padding: 9px 14px;
-        background: #0a0a0a;
         font-family: "Geist", sans-serif;
         font-weight: 500;
-        font-size: 11px;
+        font-size: 10.5px;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: #6c6f77;
+        color: #5d6068;
       }
       .legend span {
         display: flex;
@@ -74,121 +72,155 @@
       }
       .legend i {
         display: block;
-        width: 9px;
-        height: 9px;
+        width: 8px;
+        height: 8px;
         border-radius: 2px;
       }
       .legend .renter {
         border-radius: 50%;
         border: 1.5px solid #e7e7e2;
-        width: 7px;
-        height: 7px;
+        width: 6px;
+        height: 6px;
       }
       .legend .host { background: #6f8fd0; }
       .legend .tie { background: #c9a35e; }
-      .legend .idle { background: #16181c; border: 1px solid #2c2f36; width: 7px; height: 7px; }
+      .legend .relay { border: 1px solid #6c6f77; width: 8px; height: 8px; box-sizing: border-box; padding: 1.5px; }
+      .legend .relay::after { content: ""; display: block; width: 100%; height: 100%; background: #6c6f77; border-radius: 1px; }
+      .legend .contract { border: 1.3px solid #e7e7e2; box-sizing: border-box; width: 9px; height: 9px; }
     </style>
   </head>
   <body>
     <svg id="net" width="1500" height="500" viewBox="0 0 1500 500"></svg>
     <div class="copy">
       <div class="wordmark">Grid</div>
-      <div class="line">Rent GPUs from their owners.</div>
+      <div class="line">Decentralized compute.</div>
       <div class="engraved">One machine, or one job across many</div>
     </div>
     <div class="legend">
       <span><i class="renter"></i>Renter</span>
-      <span><i class="host"></i>Host running a task</span>
+      <span><i class="host"></i>Host at work</span>
       <span><i class="tie"></i>Tie-break</span>
-      <span><i class="idle"></i>Idle machine</span>
+      <span><i class="relay"></i>Relay</span>
+      <span><i class="contract"></i>Contract</span>
     </div>
 
     <script>
-      // A peer-to-peer network of machines, with one swarm job fanning out from a renter to many
-      // hosts. Seeded, so the banner renders the same every time.
-      let seed = 20261029;
+      // The network with no centre: machines on a lattice joined by peer links, a relay for
+      // machines behind routers, three renters' jobs in different places, and the chain underneath
+      // holding the contracts their ETH sits in. Seeded, so it renders the same every time.
+      let seed = 1500500;
       const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
       const NS = "http://www.w3.org/2000/svg";
       const svg = document.getElementById("net");
       const el = (name, attrs) => {
-        const node = document.createElementNS(NS, name);
-        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-        svg.appendChild(node);
-        return node;
+        const n = document.createElementNS(NS, name);
+        for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+        svg.appendChild(n);
+        return n;
       };
+      const C = {
+        edge: "#1c1f24",
+        node: "#121418",
+        nodeLine: "#2a2d33",
+        steel: "#6f8fd0",
+        steelSoft: "#3f5687",
+        gold: "#c9a35e",
+        ink: "#e7e7e2",
+        faint: "#6c6f77",
+        nat: "#373a41",
+        drop: "#45484f",
+      };
+
+      const X0 = 60, Y0 = 58, P = 40, COLS = 36, ROWS = 9;
+      const at = (c, r) => ({ c, r, x: X0 + c * P, y: Y0 + r * P });
+      const key = (p) => p.r * 100 + p.c;
+      const dist = (a, b) => Math.hypot(a.c - b.c, a.r - b.r);
+
+      const grid = new Map();
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (rand() < 0.62) grid.set(r * 100 + c, at(c, r));
+      const relay = at(27, 1);
+      grid.set(key(relay), relay);
+      const behind = [...grid.values()]
+        .filter((p) => p !== relay && Math.max(Math.abs(p.c - relay.c), Math.abs(p.r - relay.r)) === 2)
+        .sort(() => rand() - 0.5)
+        .slice(0, 3);
+      const isBehind = (p) => behind.includes(p);
+
+      for (const p of grid.values()) {
+        if (isBehind(p)) continue;
+        for (const q of [grid.get(key({ c: p.c + 1, r: p.r })), grid.get(key({ c: p.c, r: p.r + 1 }))])
+          if (q && q.c < COLS && !isBehind(q) && rand() < 0.6)
+            el("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, stroke: C.edge, "stroke-width": 1 });
+      }
+      for (const p of behind)
+        el("line", { x1: p.x, y1: p.y, x2: relay.x, y2: relay.y, stroke: C.nat, "stroke-width": 1, "stroke-dasharray": "2.5 3.5" });
+
+      const used = new Set([key(relay), ...behind.map(key)]);
+      function job(c, r, size, tie, pool) {
+        const renter = at(c, r);
+        const near = [...grid.values()]
+          .filter((p) => !used.has(key(p)))
+          .map((p) => ({ p, d: dist(p, renter) }))
+          .filter(({ d }) => d > 1 && d <= 4.4)
+          .sort((a, b) => a.d - b.d)
+          .slice(0, pool)
+          .sort(() => rand() - 0.5)
+          .map(({ p }) => p);
+        const hosts = near.slice(0, size);
+        const t = tie ? near[size] : null;
+        [...hosts, ...(t ? [t] : [])].forEach((p) => used.add(key(p)));
+        return { renter, hosts, tie: t, direct: size === 1 };
+      }
+      const swarmA = job(21.5, 3.5, 6, true, 11);
+      const direct = job(29.5, 6.5, 1, false, 2);
+      const swarmB = job(33.5, 3.5, 3, false, 6);
+      const jobs = [swarmA, direct, swarmB];
+
+      // The chain: block ticks on a rail, with the contracts the renters' ETH sits in.
+      const RAIL = 452, RAIL_FROM = 600, RAIL_TO = X0 + (COLS - 1) * P;
+      for (const j of [swarmA, direct])
+        el("line", { x1: j.renter.x, y1: j.renter.y + 11, x2: j.renter.x, y2: RAIL - 8, stroke: C.drop, "stroke-width": 1, "stroke-dasharray": "1.2 4", "stroke-linecap": "round" });
+
+      for (const j of jobs) {
+        for (const h of j.hosts)
+          el("line", { x1: j.renter.x, y1: j.renter.y, x2: h.x, y2: h.y, stroke: j.direct ? C.steel : C.steelSoft, "stroke-width": j.direct ? 1.8 : 1.1 });
+        if (j.tie) el("line", { x1: j.renter.x, y1: j.renter.y, x2: j.tie.x, y2: j.tie.y, stroke: C.gold, "stroke-width": 1.1, "stroke-opacity": 0.8 });
+      }
+
+      const lit = new Set(jobs.flatMap((j) => j.hosts.map(key)));
+      const ties = new Set(jobs.filter((j) => j.tie).map((j) => key(j.tie)));
+      for (const p of grid.values()) {
+        if (p === relay) continue;
+        const color = ties.has(key(p)) ? C.gold : lit.has(key(p)) ? C.steel : null;
+        el("rect", { x: p.x - 6, y: p.y - 6, width: 12, height: 12, rx: 2.5, fill: color ?? C.node, stroke: color ?? C.nodeLine, "stroke-width": 1 });
+      }
+      el("rect", { x: relay.x - 10.5, y: relay.y - 10.5, width: 21, height: 21, rx: 3, fill: "#0a0a0a", stroke: C.faint, "stroke-width": 1.1 });
+      el("rect", { x: relay.x - 6, y: relay.y - 6, width: 12, height: 12, rx: 2.5, fill: C.faint });
+      for (const j of jobs) {
+        el("circle", { cx: j.renter.x, cy: j.renter.y, r: 9.5, fill: "#0a0a0a", stroke: C.ink, "stroke-width": 1.6 });
+        el("circle", { cx: j.renter.x, cy: j.renter.y, r: 3, fill: C.ink });
+      }
+
+      for (let x = RAIL_FROM, i = 0; x <= RAIL_TO; x += 5, i++) {
+        const h = 2 + Math.round(10 * rand() ** 2);
+        el("line", { x1: x, y1: RAIL, x2: x, y2: RAIL - h, stroke: x > RAIL_TO - 5 ? C.steel : "#2a2d33", "stroke-width": 1 });
+      }
+      el("line", { x1: RAIL_FROM, y1: RAIL, x2: RAIL_TO, y2: RAIL, stroke: "#34373e", "stroke-width": 1 });
+      for (const x of [swarmA.renter.x, direct.renter.x, X0 + 26 * P]) {
+        el("rect", { x: x - 7, y: RAIL - 7, width: 14, height: 14, rx: 2, fill: "#0a0a0a", stroke: C.ink, "stroke-width": 1.3 });
+        el("rect", { x: x - 2.5, y: RAIL - 2.5, width: 5, height: 5, rx: 1, fill: C.ink });
+      }
+      const label = el("text", { x: RAIL_TO, y: RAIL + 30, "text-anchor": "end", fill: "#5d6068", "font-family": "Geist, sans-serif", "font-weight": 500, "font-size": 10.5, "letter-spacing": "0.2em" });
+      label.textContent = "ROBINHOOD CHAIN";
 
       // Fade the network out behind the words.
       const defs = el("defs", {});
       defs.innerHTML = `
         <linearGradient id="fade" x1="0" x2="1" y1="0" y2="0">
           <stop offset="0" stop-color="#0a0a0a" stop-opacity="1"/>
-          <stop offset="0.36" stop-color="#0a0a0a" stop-opacity="0.96"/>
-          <stop offset="0.52" stop-color="#0a0a0a" stop-opacity="0"/>
+          <stop offset="0.34" stop-color="#0a0a0a" stop-opacity="0.95"/>
+          <stop offset="0.5" stop-color="#0a0a0a" stop-opacity="0"/>
         </linearGradient>`;
-
-      // Machines on a jittered lattice.
-      const nodes = [];
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 25; col++) {
-          if (rand() < 0.28) continue;
-          nodes.push({ x: 40 + col * 60 + (rand() - 0.5) * 26, y: 34 + row * 62 + (rand() - 0.5) * 26 });
-        }
-      }
-
-      // Peer connections: each machine to its two nearest neighbours.
-      const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-      const edges = new Set();
-      nodes.forEach((a, i) => {
-        nodes
-          .map((b, j) => [dist(a, b), j])
-          .filter(([, j]) => j !== i)
-          .sort((p, q) => p[0] - q[0])
-          .slice(0, 2)
-          .forEach(([, j]) => edges.add(i < j ? `${i}-${j}` : `${j}-${i}`));
-      });
-      for (const e of edges) {
-        const [i, j] = e.split("-").map(Number);
-        el("line", { x1: nodes[i].x, y1: nodes[i].y, x2: nodes[j].x, y2: nodes[j].y, stroke: "#1f2227", "stroke-width": 1 });
-      }
-
-      // One job: a renter, and the hosts running its tasks.
-      const renter = nodes.reduce((best, n) => (dist(n, { x: 1010, y: 250 }) < dist(best, { x: 1010, y: 250 }) ? n : best));
-      const hosts = nodes
-        .filter((n) => n !== renter && n.x > 760 && n.y < 410 && dist(n, renter) > 90 && dist(n, renter) < 420)
-        .sort(() => rand() - 0.5)
-        .slice(0, 13);
-      const disputed = hosts[4];
-      for (const h of hosts) {
-        el("line", {
-          x1: renter.x,
-          y1: renter.y,
-          x2: h.x,
-          y2: h.y,
-          stroke: h === disputed ? "#c9a35e" : "#6f8fd0",
-          "stroke-width": 1.1,
-          "stroke-opacity": 0.55,
-        });
-      }
-
-      // Machines drawn as small chips; working hosts lit.
-      for (const n of nodes) {
-        const lit = hosts.includes(n);
-        const color = n === disputed ? "#c9a35e" : "#6f8fd0";
-        el("rect", {
-          x: n.x - 6,
-          y: n.y - 6,
-          width: 12,
-          height: 12,
-          rx: 2.5,
-          fill: lit ? color : "#16181c",
-          stroke: lit ? color : "#2c2f36",
-          "stroke-width": 1,
-        });
-      }
-      // The renter: a ring.
-      el("circle", { cx: renter.x, cy: renter.y, r: 10, fill: "#0a0a0a", stroke: "#e7e7e2", "stroke-width": 1.5 });
-      el("circle", { cx: renter.x, cy: renter.y, r: 3, fill: "#e7e7e2" });
-
       el("rect", { x: 0, y: 0, width: 1500, height: 500, fill: "url(#fade)" });
     </script>
   </body>

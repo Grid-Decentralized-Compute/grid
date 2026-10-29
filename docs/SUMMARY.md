@@ -1,6 +1,7 @@
 # Table of contents
 
 * [Overview](README.md)
+* [How Grid is decentralized](decentralization.md)
 
 ## Guides
 

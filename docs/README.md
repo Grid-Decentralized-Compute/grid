@@ -1,8 +1,10 @@
 # Grid
 
-Peer-to-peer GPU rental on Robinhood Chain.
+Decentralized compute on Robinhood Chain.
 
-Grid lets people rent computing time from the people who own the machines, with no company in between. Money is held by contracts on Robinhood Chain, the work happens on hosts' machines, and renters and hosts talk to each other directly or through relays run by other hosts.
+Grid lets people rent computing time from the people who own the machines. It has no servers of its own: money is held by contracts on Robinhood Chain, the work happens on hosts' machines, and renters and hosts talk to each other directly or through relays run by other hosts. [How Grid is decentralized](decentralization.md) covers who runs each part and what each can and cannot do.
+
+![The Grid network: renters, hosts and a relay connected peer to peer, with listings, escrow, result hashes and bonds held by contracts on Robinhood Chain](.gitbook/assets/network.png)
 
 **Site:** [grid-5y8.pages.dev](https://grid-5y8.pages.dev) · **Source:** [github.com/Grid-Decentralized-Compute/grid](https://github.com/Grid-Decentralized-Compute/grid) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
 

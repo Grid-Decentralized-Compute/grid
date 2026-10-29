@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grid network diagram</title>
+    <!-- Source of docs/.gitbook/assets/network.png. Render at 1600x900 (2x zoom for the PNG). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Newsreader:opsz,wght@6..72,300&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+      svg {
+        display: block;
+      }
+      .engraved {
+        font-family: "Geist", sans-serif;
+        font-weight: 500;
+        font-size: 17px;
+        letter-spacing: 0.2em;
+        fill: #8a8d95;
+      }
+      .body {
+        font-family: "Geist", sans-serif;
+        font-size: 24px;
+        fill: #c3c5cb;
+      }
+      .mono {
+        font-family: "Geist Mono", monospace;
+        font-size: 22px;
+        fill: #e7e7e2;
+      }
+      .note {
+        font-family: "Geist", sans-serif;
+        font-size: 19px;
+        fill: #8a8d95;
+      }
+      .wordmark {
+        font-family: "Newsreader", serif;
+        font-weight: 300;
+        font-size: 58px;
+        letter-spacing: -0.01em;
+        fill: #f3f3f0;
+      }
+    </style>
+  </head>
+  <body>
+    <svg id="d" width="1600" height="900" viewBox="0 0 1600 900"></svg>
+    <script>
+      // A labelled drawing of the network: peer links on a lattice, a relay with machines behind
+      // routers, a swarm job, a direct rental, and the contracts on Robinhood Chain underneath.
+      // Seeded, so it renders the same every time.
+      let seed = 4610;
+      const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+      const NS = "http://www.w3.org/2000/svg";
+      const svg = document.getElementById("d");
+      const el = (name, attrs, text) => {
+        const n = document.createElementNS(NS, name);
+        for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+        if (text) n.textContent = text;
+        svg.appendChild(n);
+        return n;
+      };
+
+      const C = {
+        edge: "#1f2227",
+        node: "#121418",
+        nodeLine: "#2c2f36",
+        steel: "#6f8fd0",
+        steelSoft: "#3f5687",
+        gold: "#c9a35e",
+        ink: "#e7e7e2",
+        faint: "#6c6f77",
+        nat: "#3a3d44",
+        leader: "#4a4d55",
+      };
+
+      const X0 = 120, Y0 = 158, P = 48, COLS = 29, ROWS = 9;
+      const at = (c, r) => ({ c, r, x: X0 + c * P, y: Y0 + r * P });
+      const key = (p) => p.r * 100 + p.c;
+      const dist = (a, b) => Math.hypot(a.c - b.c, a.r - b.r);
+
+      // Machines.
+      const grid = new Map();
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (rand() < 0.62) grid.set(r * 100 + c, at(c, r));
+      const relay = at(22, 2);
+      grid.set(key(relay), relay);
+
+      // Machines behind routers hang off the relay.
+      const behind = [...grid.values()]
+        .filter((p) => p !== relay && Math.max(Math.abs(p.c - relay.c), Math.abs(p.r - relay.r)) === 2)
+        .sort(() => rand() - 0.5)
+        .slice(0, 3);
+      const isBehind = (p) => behind.includes(p);
+
+      // Peer links.
+      const links = [];
+      for (const p of grid.values()) {
+        if (isBehind(p)) continue;
+        for (const q of [grid.get(key({ c: p.c + 1, r: p.r })), grid.get(key({ c: p.c, r: p.r + 1 }))]) {
+          if (q && q.c < COLS && !isBehind(q) && rand() < 0.6) {
+            links.push([p, q]);
+            el("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, stroke: C.edge, "stroke-width": 1.2 });
+          }
+        }
+      }
+      for (const p of behind)
+        el("line", { x1: p.x, y1: p.y, x2: relay.x, y2: relay.y, stroke: C.nat, "stroke-width": 1.2, "stroke-dasharray": "3 4" });
+
+      // Jobs.
+      const used = new Set([key(relay), ...behind.map(key)]);
+      function job(c, r, size, tie, pool) {
+        const renter = at(c, r);
+        const near = [...grid.values()]
+          .filter((p) => !used.has(key(p)))
+          .map((p) => ({ p, d: dist(p, renter) }))
+          .filter(({ d }) => d > 1 && d <= 4.6)
+          .sort((a, b) => a.d - b.d)
+          .slice(0, pool)
+          .sort(() => rand() - 0.5)
+          .map(({ p }) => p);
+        const hosts = near.slice(0, size);
+        const t = tie ? near[size] : null;
+        [...hosts, ...(t ? [t] : [])].forEach((p) => used.add(key(p)));
+        return { renter, hosts, tie: t, direct: size === 1 };
+      }
+      const swarmA = job(8.5, 3.5, 6, true, 11);
+      const direct = job(17.5, 6.5, 1, false, 2);
+      const swarmB = job(26.5, 7.5, 3, false, 6);
+      const jobs = [swarmA, direct, swarmB];
+
+      // Settlement: each renter's ETH sits in the market contract below it.
+      const RAIL = 738;
+      for (const j of [swarmA, direct])
+        el("line", { x1: j.renter.x, y1: j.renter.y + 12, x2: j.renter.x, y2: RAIL - 8, stroke: C.leader, "stroke-width": 1.2, "stroke-dasharray": "1.5 5", "stroke-linecap": "round" });
+
+      for (const j of jobs) {
+        for (const h of j.hosts)
+          el("line", { x1: j.renter.x, y1: j.renter.y, x2: h.x, y2: h.y, stroke: j.direct ? C.steel : C.steelSoft, "stroke-width": j.direct ? 2 : 1.3 });
+        if (j.tie) el("line", { x1: j.renter.x, y1: j.renter.y, x2: j.tie.x, y2: j.tie.y, stroke: C.gold, "stroke-width": 1.3, "stroke-opacity": 0.8 });
+      }
+
+      // Machines on top of the links.
+      const lit = new Set(jobs.flatMap((j) => j.hosts.map(key)));
+      const ties = new Set(jobs.filter((j) => j.tie).map((j) => key(j.tie)));
+      for (const p of grid.values()) {
+        if (p === relay) continue;
+        const color = ties.has(key(p)) ? C.gold : lit.has(key(p)) ? C.steel : null;
+        el("rect", { x: p.x - 7, y: p.y - 7, width: 14, height: 14, rx: 2.5, fill: color ?? C.node, stroke: color ?? C.nodeLine, "stroke-width": 1.2 });
+      }
+      el("rect", { x: relay.x - 12, y: relay.y - 12, width: 24, height: 24, rx: 3.5, fill: "#0a0a0a", stroke: C.faint, "stroke-width": 1.2 });
+      el("rect", { x: relay.x - 7, y: relay.y - 7, width: 14, height: 14, rx: 2.5, fill: C.faint });
+      for (const j of jobs) {
+        el("circle", { cx: j.renter.x, cy: j.renter.y, r: 11, fill: "#0a0a0a", stroke: C.ink, "stroke-width": 1.8 });
+        el("circle", { cx: j.renter.x, cy: j.renter.y, r: 3.4, fill: C.ink });
+      }
+
+      // Callouts: an engraved name and one plain sentence, on a hairline to what they describe.
+      // Leaders run between lattice columns, so they never cross a machine.
+      function label(x, y, title, lines) {
+        el("text", { x, y, class: "engraved" }, title.toUpperCase());
+        lines.forEach((line, i) => el("text", { x, y: y + 32 + i * 30, class: "body" }, line));
+      }
+      const TOP = 40;
+      el("line", { x1: swarmA.renter.x, y1: swarmA.renter.y - 14, x2: swarmA.renter.x, y2: TOP + 76, stroke: C.leader, "stroke-width": 1.2 });
+      label(swarmA.renter.x + 14, TOP, "Swarm job", ["One job on many hosts.", "Every task runs twice and is compared."]);
+      const rx = relay.x + P / 2;
+      el("polyline", { points: `${relay.x + 13},${relay.y} ${rx},${relay.y} ${rx},${TOP + 76}`, fill: "none", stroke: C.leader, "stroke-width": 1.2 });
+      label(rx + 14, TOP, "Relay", ["Reaches machines", "behind home routers."]);
+      label(direct.renter.x + 20, 590, "Direct rental", ["One whole machine and an", "SSH login, by the minute."]);
+      // Point at the middle of a real link on the bottom row.
+      const [la, lb] = links.find(([a, b]) => a.r === ROWS - 1 && b.r === ROWS - 1 && a.c <= 6);
+      const px = (la.x + lb.x) / 2;
+      el("line", { x1: px, y1: la.y + 5, x2: px, y2: 574, stroke: C.leader, "stroke-width": 1.2 });
+      label(px + 14, 590, "Peer links", ["Encrypted connections", "between nodes."]);
+
+      // The chain: a rail of block ticks with the three contracts on it.
+      el("text", { x: X0, y: 702, class: "engraved" }, "ROBINHOOD CHAIN");
+      for (let x = X0, i = 0; x <= X0 + (COLS - 1) * P; x += 6, i++) {
+        const h = 2 + Math.round(12 * rand() ** 2);
+        el("line", { x1: x, y1: RAIL, x2: x, y2: RAIL - h, stroke: x > X0 + (COLS - 1) * P - 6 ? C.steel : "#2b2e34", "stroke-width": 1.2 });
+      }
+      el("line", { x1: X0, y1: RAIL, x2: X0 + (COLS - 1) * P, y2: RAIL, stroke: "#3a3d44", "stroke-width": 1.2 });
+      const contracts = [
+        { x: swarmA.renter.x, name: "SwarmMarket", what: "Jobs, leases, result hashes, refunds" },
+        { x: direct.renter.x, name: "GridMarket", what: "Listings, rental escrow, per-minute billing" },
+        { x: X0 + 25 * P, name: "StakeRegistry", what: "GRID bonds, unbonding, slashing" },
+      ];
+      for (const k of contracts) {
+        el("rect", { x: k.x - 8, y: RAIL - 8, width: 16, height: 16, rx: 2, fill: "#0a0a0a", stroke: C.ink, "stroke-width": 1.5 });
+        el("rect", { x: k.x - 3, y: RAIL - 3, width: 6, height: 6, rx: 1, fill: C.ink });
+        el("text", { x: k.x, y: RAIL + 42, class: "mono", "text-anchor": "middle" }, k.name);
+        el("text", { x: k.x, y: RAIL + 70, class: "note", "text-anchor": "middle" }, k.what);
+      }
+
+      el("text", { x: X0, y: 92, class: "wordmark" }, "Grid");
+      el("text", { x: X0, y: 870, class: "note" }, "The contracts hold the money and the record. Everything else runs on machines that people own.");
+    </script>
+  </body>
+</html>
