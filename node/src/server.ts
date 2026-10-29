@@ -4,6 +4,7 @@ import { ACCESS_MESSAGE_TTL_SECONDS, accessMessage, type AccessRequest, type Hea
 import type { Chain } from "./chain";
 import { log } from "./log";
 import type { SessionManager } from "./sessions";
+import type { SwarmWorker } from "./swarm";
 
 type Options = {
   port: number;
@@ -12,6 +13,7 @@ type Options = {
   version: string;
   chain: Chain;
   sessions: SessionManager;
+  swarm: SwarmWorker | null;
 };
 
 /**
@@ -20,8 +22,10 @@ type Options = {
  *
  *   GET  /health            liveness + what this machine is
  *   POST /access/:rentalId  { ts, sig } signed by the renter -> SSH details
+ *   GET  /results/:swarm/:job/:task  output of a swarm task this host ran (the renter checks
+ *                                    it against the hash on-chain, so it needs no auth)
  */
-export function startServer({ port, machineId, name, version, chain, sessions }: Options) {
+export function startServer({ port, machineId, name, version, chain, sessions, swarm }: Options) {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -52,6 +56,15 @@ export function startServer({ port, machineId, name, version, chain, sessions }:
           version,
         };
         return send(200, body);
+      }
+
+      const result = url.pathname.match(/^\/results\/(0x[0-9a-fA-F]{40})\/(\d+)\/(\d+)$/);
+      if (req.method === "GET" && result) {
+        const output = swarm?.readResult(result[1], result[2], result[3]) ?? null;
+        if (output === null) return send(404, { error: "this host has no output for that task" });
+        res.writeHead(200, { ...headers, "Content-Type": "text/plain; charset=utf-8" });
+        res.end(output);
+        return;
       }
 
       const match = url.pathname.match(/^\/access\/(\d+)$/);

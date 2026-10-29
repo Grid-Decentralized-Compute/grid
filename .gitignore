@@ -13,7 +13,7 @@ contracts/broadcast/
 contracts/deployments/31337.json
 
 # host node state (machine id, sessions)
-node/.grid/
+node/.grid*/
 
 
 # wrangler scratch files

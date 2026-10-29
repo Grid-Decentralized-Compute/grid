@@ -1,13 +1,14 @@
 # Grid
 
-Decentralized compute network. Hosts list machines; renters pay ETH into an on-chain escrow on
-Robinhood Chain and get SSH access straight from the host; hosts bond GRID to stay listed. No Grid
-server sits in between.
+Decentralized compute network. Hosts run a node next to their GPUs; renters pay ETH into contracts
+on Robinhood Chain and work with the hosts' machines directly; hosts bond GRID to stay listed. No Grid
+server sits in between. There are two ways to rent:
 
-This is the v0 skeleton: dedicated per-machine rental, like Vast.ai or RunPod, with the market and
-the money on-chain. Swarm jobs (one job spread over many peers) come later on top of the same pieces.
+- **Direct**: one whole machine with an SSH login, billed per started minute (like Vast.ai or RunPod).
+- **Swarm**: one job split into independent tasks and spread across many hosts at once. Every task
+  runs on two hosts and is paid only when their outputs match; a third host breaks ties.
 
-## How it works
+## Direct rental
 
 1. A host runs `node/` on a machine. It publishes the machine (GPU, RAM, price per hour and the
    https URL where the node can be reached) in `GridMarket` and waits.
@@ -23,13 +24,30 @@ the money on-chain. Swarm jobs (one job spread over many peers) come later on to
    While `minBond` is 0 (the default off a local chain) bonding is switched off and every host is
    rentable.
 
+## Swarm jobs
+
+1. A renter posts a job to `SwarmMarket`: a manifest (container image, a command run with `sh -c`,
+   one input per task, emitted in the `JobPosted` event) and the ETH for three runs of every task.
+2. Nodes whose machines are not rented find open jobs with `claimable()`, `claim()` small batches
+   on short leases, run each task (input on stdin, output from stdout), keep the output and
+   `submit()` its keccak256 hash. A host never runs the same task twice.
+3. Two matching hashes pay both hosts. Two different hashes open a third run; the two that agree
+   are paid and the other host gets a fault. Three different hashes fail the task. Expired leases go
+   to other hosts.
+4. The renter fetches outputs from `GET /results/<swarm>/<job>/<task>` on any agreeing host and checks
+   them against the hash on-chain, then `closeJob()` credits the unused runs back.
+
+Swarm work needs a GRID bond whenever bonding is on. Outputs must be deterministic, and manifests are
+public. Set `GRID_SWARM=0` to keep a node out of the swarm; `GRID_SWARM_CHEAT=1` makes a test node
+submit wrong results so the tie-break can be exercised locally.
+
 ## Layout
 
 | Folder             | What                                                                                                   | Stack              |
 | ------------------ | ------------------------------------------------------------------------------------------------------ | ------------------ |
-| `contracts/`       | `GridMarket` (listings, ETH escrow, per-minute settlement), `StakeRegistry` (GRID bonds), `MockGRID`   | Foundry            |
-| `node/`            | Host daemon: lists the machine, serves `/health` and `/access`, runs the SSH container, settles rentals | Node 22+, viem     |
-| `web/`             | The whole site at one URL: market (/), rentals, host, about; talks to the chain and host nodes only   | Vite, React, wagmi |
+| `contracts/`       | `GridMarket` (direct rentals), `SwarmMarket` (swarm jobs), `StakeRegistry` (GRID bonds), `MockGRID`   | Foundry            |
+| `node/`            | Host daemon: direct rentals over SSH, swarm tasks when idle, serves `/health`, `/access`, `/results`   | Node 22+, viem     |
+| `web/`             | The whole site at one URL: market (direct /, swarm /swarm, /jobs/:id), rentals, host, about, legal   | Vite, React, wagmi |
 | `packages/shared/` | Chain definitions, generated ABIs and addresses, wire types shared by web and node                     | TypeScript         |
 
 `packages/shared/src/generated/` is committed so a checkout without Foundry can still type-check,

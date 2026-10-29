@@ -6,6 +6,7 @@ import { probeHardware } from "./hardware";
 import { log } from "./log";
 import { startServer } from "./server";
 import { SessionManager } from "./sessions";
+import { SwarmWorker } from "./swarm";
 
 const VERSION = "0.0.1";
 /** Consecutive session-start failures before the rental is ended and the listing paused. */
@@ -34,7 +35,11 @@ async function main() {
   const activeAtStart = activeOf(await chain.getMachine(machineId));
   await sessions.sweep(activeAtStart);
 
-  startServer({ port: config.port, machineId, name: config.name, version: VERSION, chain, sessions });
+  const swarm = config.swarm ? new SwarmWorker(config, chain, sessions.mode === "docker", hardware.gpuCount > 0) : null;
+  if (swarm) await swarm.register();
+  else log("swarm: off (GRID_SWARM=0 or no SwarmMarket on this chain)");
+
+  startServer({ port: config.port, machineId, name: config.name, version: VERSION, chain, sessions, swarm });
 
   // The chain is the source of truth: every few seconds compare its view of this
   // machine with the session we are running and start, stop or settle as needed.
@@ -83,12 +88,15 @@ async function main() {
   }
 
   async function loop() {
+    let worked = false;
     try {
       await tick();
+      // An idle machine works for the swarm; a direct rental always comes first.
+      if (swarm && current === null) worked = await swarm.round();
     } catch (e) {
       log(`error: ${firstLine(e)}`);
     }
-    setTimeout(loop, config.pollMs);
+    setTimeout(loop, worked ? 250 : config.pollMs);
   }
   void loop();
 

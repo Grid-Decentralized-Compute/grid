@@ -28,7 +28,7 @@ export function Caseback() {
   const linkClass = "transition-colors hover:text-steel";
 
   return (
-    <footer className="border-t border-ink/80 py-6">
+    <footer className="border-t border-rule py-6">
       <div className="engraved flex flex-wrap items-center gap-x-8 gap-y-3 text-faint">
         <span className="text-muted">{chain?.name ?? "Unknown network"}</span>
         <span className="tnum flex items-center gap-2">

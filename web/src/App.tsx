@@ -6,6 +6,7 @@ import { Wallet } from "./components/Wallet";
 import { SOURCE_URL, X_URL } from "./lib/links";
 import { About } from "./pages/About";
 import { Host } from "./pages/Host";
+import { JobPage } from "./pages/Job";
 import { Legal } from "./pages/Legal";
 import { Market } from "./pages/Market";
 import { Rentals } from "./pages/Rentals";
@@ -14,7 +15,8 @@ import { Link, scrollToHash, usePath } from "./router";
 type PageDef = { label: string; title: string; nav: boolean; render: () => ReactNode };
 
 const pages: Record<string, PageDef> = {
-  "/": { label: "Market", title: "Grid", nav: true, render: () => <Market /> },
+  "/": { label: "Market", title: "Grid", nav: true, render: () => <Market mode="direct" /> },
+  "/swarm": { label: "Market", title: "Swarm · Grid", nav: false, render: () => <Market mode="swarm" /> },
   "/rentals": { label: "Rentals", title: "Rentals · Grid", nav: true, render: () => <Rentals /> },
   "/host": { label: "Host", title: "Host · Grid", nav: true, render: () => <Host /> },
   "/about": { label: "About", title: "About · Grid", nav: true, render: () => <About /> },
@@ -23,11 +25,17 @@ const pages: Record<string, PageDef> = {
 
 export default function App() {
   const path = usePath();
-  const page = pages[path.replace(/\/+$/, "") || "/"];
+  const clean = path.replace(/\/+$/, "") || "/";
+  const job = clean.match(/^\/jobs\/(\d+)$/);
+  const page: PageDef | undefined = job
+    ? { label: "Market", title: `Job ${job[1]} · Grid`, nav: false, render: () => <JobPage id={BigInt(job[1])} /> }
+    : pages[clean];
+  // The swarm and job pages live under Market in the navigation.
+  const navActive = clean === "/swarm" || job ? "/" : clean;
 
   useEffect(() => {
     document.title = page?.title ?? "Not found · Grid";
-  }, [page]);
+  }, [page?.title]);
 
   // A link that arrives with #section (e.g. /legal#privacy) opens at that section.
   useEffect(() => {
@@ -48,9 +56,9 @@ export default function App() {
             <Link
               key={href}
               href={href}
-              aria-current={page === p ? "page" : undefined}
+              aria-current={navActive === href ? "page" : undefined}
               className={
-                page === p
+                navActive === href
                   ? "text-ink underline decoration-steel decoration-[1.5px] underline-offset-[6px]"
                   : "text-muted transition-colors hover:text-ink"
               }
@@ -73,7 +81,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 pb-28 pt-12 sm:pt-20">
-        <ErrorBoundary key={path}>
+        <ErrorBoundary key={clean}>
           {page ? (
             page.render()
           ) : (

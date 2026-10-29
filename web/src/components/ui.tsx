@@ -6,7 +6,7 @@ const variants: Record<Variant, string> = {
   primary: "h-8 px-3.5 bg-steel text-on-steel hover:bg-steel-deep",
   secondary: "h-8 px-3.5 border border-line bg-transparent text-ink hover:border-steel hover:text-steel",
   quiet: "h-auto px-0 text-muted hover:text-steel",
-  danger: "h-8 px-3.5 border border-line bg-transparent text-bad hover:border-bad/50",
+  danger: "h-8 px-3.5 border border-line bg-transparent text-bad hover:border-bad",
 };
 
 export function Button({
@@ -64,7 +64,7 @@ export function Page({ title, lede, children }: { title: string; lede?: ReactNod
 export function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <section className="mt-16 first:mt-0">
-      <div className="flex min-h-8 items-end justify-between gap-4 border-b border-ink/80 pb-2">
+      <div className="flex min-h-8 items-end justify-between gap-4 border-b border-rule pb-2">
         <h2 className="engraved text-ink">{title}</h2>
         {aside}
       </div>
@@ -91,4 +91,4 @@ export function Note({ children, className = "" }: { children: ReactNode; classN
 }
 
 export const linkClass =
-  "text-steel underline decoration-steel/30 underline-offset-[3px] transition-colors hover:decoration-steel";
+  "text-steel underline decoration-steel-edge underline-offset-[3px] transition-colors hover:decoration-steel";

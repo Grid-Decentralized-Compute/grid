@@ -9,6 +9,7 @@ import { fmtEth, fmtGb, shortAddr, shortCpu } from "../lib/format";
 import { endpointBlocked, useHealth } from "../lib/hooks";
 import { useTx } from "../lib/useTx";
 import { Link, navigate } from "../router";
+import { Swarm } from "./Swarm";
 
 type Listing = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getListings">[number];
 
@@ -20,7 +21,65 @@ const MAX_HOURS = 720;
 const COLS =
   "sm:grid sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_7rem_6rem_4.5rem] sm:items-center sm:gap-6";
 
-export function Market() {
+export type MarketMode = "direct" | "swarm";
+
+const MODES: { mode: MarketMode; href: string; title: string; line: string }[] = [
+  {
+    mode: "direct",
+    href: "/",
+    title: "Direct",
+    line: "One machine, yours alone, with an SSH login. If its host goes offline, the rental stops and you pay only for the minutes used.",
+  },
+  {
+    mode: "swarm",
+    href: "/swarm",
+    title: "Swarm",
+    line: "One job split into tasks and spread across many hosts. Each task runs on two machines and is paid only when their outputs match.",
+  },
+];
+
+export function Market({ mode }: { mode: MarketMode }) {
+  return (
+    <>
+      <section>
+        <h1 className="rise font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
+          Rent GPUs from their owners.
+        </h1>
+        <p className="rise mt-6 max-w-[60ch] text-[16px] text-muted [animation-delay:90ms]">
+          Rent a whole machine from one host, or hand a job to many hosts at once. Either way the ETH is held by a contract
+          on Robinhood Chain, and hosts are paid only for what they deliver.
+        </p>
+        <div className="rise mt-10 [animation-delay:180ms]">
+          <BlockTrack />
+        </div>
+      </section>
+
+      <div role="tablist" aria-label="How to rent" className="mt-16 grid gap-px border-y border-line sm:mt-24 sm:grid-cols-2">
+        {MODES.map((m) => {
+          const active = m.mode === mode;
+          return (
+            <Link
+              key={m.mode}
+              href={m.href}
+              role="tab"
+              aria-selected={active}
+              className={`group block border-t-2 py-5 pr-8 transition-colors ${active ? "border-steel" : "border-transparent hover:border-line"}`}
+            >
+              <span className={`engraved ${active ? "text-steel" : "text-ink"}`}>{m.title}</span>
+              <span className={`mt-2 block max-w-[46ch] text-[14px] ${active ? "text-ink" : "text-muted group-hover:text-ink"}`}>
+                {m.line}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {mode === "direct" ? <Machines /> : <Swarm />}
+    </>
+  );
+}
+
+function Machines() {
   const deployment = useDeployment();
   const { data: count, error: countError } = useReadContract({
     abi: gridMarketAbi,
@@ -57,22 +116,8 @@ export function Market() {
 
   return (
     <>
-      <section>
-        <h1 className="rise font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
-          Rent GPUs from their owners.
-        </h1>
-        <p className="rise mt-6 max-w-[60ch] text-[16px] text-muted [animation-delay:90ms]">
-          Each machine below is listed by the person who runs it. When you rent one, the ETH for the hours you choose is
-          held by the GridMarket contract; the host is paid for the minutes you use and the rest is returned to you when
-          the rental ends.
-        </p>
-        <div className="rise mt-10 [animation-delay:180ms]">
-          <BlockTrack />
-        </div>
-      </section>
-
-      <section className="mt-16 sm:mt-24">
-        <div className="flex items-end justify-between gap-4 border-b border-ink/80 pb-2">
+      <section className="mt-12">
+        <div className="flex items-end justify-between gap-4 border-b border-rule pb-2">
           <h2 className="engraved text-ink">
             Machines{!loading && <span className="tnum ml-2 text-faint">{String(items.length).padStart(2, "0")}</span>}
           </h2>

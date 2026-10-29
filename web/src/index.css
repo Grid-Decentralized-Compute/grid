@@ -21,6 +21,11 @@
   --color-on-steel: #ffffff; /* text on a steel button */
   --color-tick: #a9aba4; /* block track */
   --color-mark-off: #c4c5c0; /* an index that is not lit */
+  /* Steel blended into the dial, as solid colours (translucent mixes paint badly in some Chromium builds). */
+  --color-steel-faint: #dee1e4;
+  --color-steel-soft: #9eaac0;
+  --color-steel-edge: #8998b4;
+  --color-rule: #424447; /* ink at 80% on the dial, for section rules */
 }
 
 :root {
@@ -46,6 +51,10 @@
   --color-bad: #e2686c;
   --color-tick: #5d6068;
   --color-mark-off: #3b3d43;
+  --color-steel-faint: #1f222b;
+  --color-steel-soft: #444f69;
+  --color-steel-edge: #505d7e;
+  --color-rule: #bcbdb9;
 }
 
 html {

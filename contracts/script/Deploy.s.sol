@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {GridMarket} from "../src/GridMarket.sol";
 import {StakeRegistry} from "../src/StakeRegistry.sol";
+import {SwarmMarket} from "../src/SwarmMarket.sol";
 import {MockGRID} from "../src/MockGRID.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IStakeRegistry} from "../src/interfaces/IStakeRegistry.sol";
@@ -36,17 +37,20 @@ contract Deploy is Script {
         }
         StakeRegistry stake = new StakeRegistry(IERC20(gridToken), minBond);
         GridMarket market = new GridMarket(IStakeRegistry(address(stake)));
+        SwarmMarket swarm = new SwarmMarket(IStakeRegistry(address(stake)));
         stake.setMarket(address(market));
         vm.stopBroadcast();
 
         console.log("StakeRegistry:", address(stake));
         console.log("GridMarket:", address(market));
+        console.log("SwarmMarket:", address(swarm));
 
         // Only record addresses that were actually sent to the chain; a dry run keeps the old file.
         if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
             string memory json = "deployment";
             vm.serializeAddress(json, "GRID", gridToken);
             vm.serializeAddress(json, "StakeRegistry", address(stake));
+            vm.serializeAddress(json, "SwarmMarket", address(swarm));
             string memory out = vm.serializeAddress(json, "GridMarket", address(market));
             vm.writeJson(out, string.concat("deployments/", vm.toString(block.chainid), ".json"));
         } else {

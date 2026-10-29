@@ -22,6 +22,16 @@ export type Config = {
   dockerImage: string;
   stateDir: string;
   pollMs: number;
+  /** SwarmMarket address, or null when swarm work is off or not deployed on this chain. */
+  swarm: Address | null;
+  /** Lowest price per run (wei) this host accepts for swarm work. */
+  swarmMinPriceWei: bigint;
+  /** Tasks claimed per round. */
+  swarmBatch: number;
+  /** Let swarm containers reach the network (off by default). */
+  swarmNetwork: boolean;
+  /** Testing only: submit wrong results, to exercise the tie-break. */
+  swarmCheat: boolean;
 };
 
 /** anvil account #1 — the default host on a local chain (account #0 deploys, #2 and #3 are the web's dev wallets). */
@@ -84,5 +94,17 @@ export function loadConfig(): Config {
     dockerImage: env("GRID_DOCKER_IMAGE", "lscr.io/linuxserver/openssh-server:latest"),
     stateDir: resolve(env("GRID_STATE_DIR", ".grid")),
     pollMs: Number(env("GRID_POLL_SECONDS", "5")) * 1000,
+    swarm: swarmAddress(deployment?.SwarmMarket),
+    swarmMinPriceWei: parseEther(env("GRID_SWARM_MIN_PRICE", "0")),
+    swarmBatch: Math.min(32, Math.max(1, Number(env("GRID_SWARM_BATCH", "4")))),
+    swarmNetwork: process.env.GRID_SWARM_NETWORK === "1",
+    swarmCheat: process.env.GRID_SWARM_CHEAT === "1",
   };
+}
+
+/** Swarm work is on by default wherever SwarmMarket is deployed; GRID_SWARM=0 turns it off. */
+function swarmAddress(fromDeployment: string | undefined): Address | null {
+  if (process.env.GRID_SWARM === "0") return null;
+  const address = process.env.GRID_SWARM_ADDRESS || fromDeployment;
+  return address && isAddress(address) ? address : null;
 }

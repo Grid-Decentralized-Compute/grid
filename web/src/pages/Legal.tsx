@@ -7,7 +7,7 @@ const UPDATED = "29 October 2026";
 function Part({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section id={id} className="scroll-mt-8">
-      <h2 className="engraved mt-14 border-b border-ink/80 pb-2 text-ink">{title}</h2>
+      <h2 className="engraved mt-14 border-b border-rule pb-2 text-ink">{title}</h2>
       {children}
     </section>
   );
@@ -87,6 +87,10 @@ export function Legal() {
           <li>
             A host can see what runs on their machine. Do not place keys, credentials or sensitive data on a machine you
             do not control.
+          </li>
+          <li>
+            A swarm job's description, including every task input, is published on-chain and can be read by anyone. Task
+            outputs are kept by the hosts that produced them and can be fetched by anyone who knows the job.
           </li>
           <li>
             Robinhood Chain can be congested, unavailable or changed by its operators. Fees, delays and outages are

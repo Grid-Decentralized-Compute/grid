@@ -1,4 +1,4 @@
-import { defineChain } from "viem";
+import { defineChain, hexToString, keccak256, stringToHex, toBytes } from "viem";
 
 export * from "./generated/abi";
 export * from "./generated/deployments";
@@ -167,3 +167,61 @@ export function costSoFar(
   const cost = (rental.pricePerHour * minutes) / 60n;
   return cost > rental.deposit ? rental.deposit : cost;
 }
+
+// ---------------------------------------------------------------- swarm jobs
+
+/** Runs escrowed per task in SwarmMarket: two replicas and one tie-break. */
+export const SWARM_RUNS = 3;
+/** Mirrors SwarmMarket.MAX_MANIFEST. */
+export const MAX_MANIFEST_BYTES = 64 * 1024;
+/** Mirrors SwarmMarket.MAX_BATCH. */
+export const SWARM_MAX_BATCH = 32;
+/** The most output a host keeps and serves for one task. */
+export const MAX_OUTPUT_BYTES = 1_000_000;
+
+/** Mirrors SwarmMarket.STATUS_*. */
+export const TaskStatus = { Waiting: 0, Running: 1, Partial: 2, Disputed: 3, Done: 4, Failed: 5 } as const;
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+
+/**
+ * What a renter publishes with a swarm job. It is emitted in SwarmMarket.JobPosted, so it is
+ * public: task inputs must not contain anything secret.
+ */
+export type SwarmManifest = {
+  v: 1;
+  /** Container image, e.g. python:3.12-slim. Pin a digest for reproducible results. */
+  image: string;
+  /** Run with `sh -c` inside the container; the task's input arrives on stdin, its output is stdout. */
+  command: string;
+  /** Ask for a GPU (hosts without one skip the job). */
+  gpu?: boolean;
+  /** One input per task. */
+  tasks: string[];
+};
+
+export const encodeManifest = (manifest: SwarmManifest): `0x${string}` => stringToHex(JSON.stringify(manifest));
+
+export function parseManifest(hex: `0x${string}`): SwarmManifest | null {
+  try {
+    const v = JSON.parse(hexToString(hex));
+    if (
+      v &&
+      typeof v.image === "string" &&
+      typeof v.command === "string" &&
+      Array.isArray(v.tasks) &&
+      v.tasks.every((t: unknown) => typeof t === "string")
+    ) {
+      return { v: 1, image: v.image, command: v.command, gpu: v.gpu === true, tasks: v.tasks };
+    }
+  } catch {
+    // not a manifest this version understands
+  }
+  return null;
+}
+
+/** The result a host submits for a task: keccak256 of the exact output bytes. */
+export const resultHash = (output: string): `0x${string}` => keccak256(toBytes(output));
+
+/** Where a host serves the output of a task it ran. */
+export const resultUrl = (endpoint: string, swarm: string, jobId: bigint | number, task: number) =>
+  `${endpoint.replace(/\/+$/, "")}/results/${swarm.toLowerCase()}/${jobId}/${task}`;

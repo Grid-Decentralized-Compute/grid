@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import type { TransactionReceipt } from "viem";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { shortError } from "./format";
 
@@ -18,8 +19,10 @@ export function useTx() {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(label: string, steps: Array<() => Promise<`0x${string}`>>): Promise<boolean> {
-    if (!client) return false;
+  /** Runs the steps in order; resolves to their receipts, or null when any step failed. */
+  async function run(label: string, steps: Array<() => Promise<`0x${string}`>>): Promise<TransactionReceipt[] | null> {
+    if (!client) return null;
+    const receipts: TransactionReceipt[] = [];
     setError(null);
     setPending(label);
     try {
@@ -29,12 +32,13 @@ export function useTx() {
         const hash = await step();
         const receipt = await client.waitForTransactionReceipt({ hash });
         if (receipt.status === "reverted") throw new Error(`Transaction reverted on-chain (${hash.slice(0, 10)}…)`);
+        receipts.push(receipt);
       }
       await queryClient.invalidateQueries();
-      return true;
+      return receipts;
     } catch (e) {
       setError(shortError(e));
-      return false;
+      return null;
     } finally {
       setPending(null);
     }

@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { parseEther } from "viem";
 import { useAccount, useChainId, useReadContract } from "wagmi";
-import { erc20Abi, gridMarketAbi, isTestToken, parseMetadata, stakeRegistryAbi, TRIAL_PERIOD_SECONDS } from "@grid/shared";
+import {
+  erc20Abi,
+  gridMarketAbi,
+  isTestToken,
+  parseMetadata,
+  stakeRegistryAbi,
+  swarmMarketAbi,
+  TRIAL_PERIOD_SECONDS,
+} from "@grid/shared";
 import { SOURCE_URL } from "../lib/links";
 import { Button, ErrorText, Input, linkClass, Note, Page, Section, Stat, Status } from "../components/ui";
 import { useDeployment } from "../contracts";
@@ -53,6 +61,10 @@ function Dashboard({ address }: { address: `0x${string}` }) {
   const { data: eligible } = useReadContract({ ...market, functionName: "hostEligible", args: [address], query });
   const { data: machines } = useReadContract({ ...market, functionName: "getMachinesOf", args: [address], query });
   const { data: earnings } = useReadContract({ ...market, functionName: "balances", args: [address], query });
+  const swarm = { abi: swarmMarketAbi, address: deployment.SwarmMarket } as const;
+  const swarmQuery = { ...query, enabled: !!deployment.SwarmMarket };
+  const { data: swarmEarnings } = useReadContract({ ...swarm, functionName: "balances", args: [address], query: swarmQuery });
+  const { data: swarmFaults } = useReadContract({ ...swarm, functionName: "faults", args: [address], query: swarmQuery });
 
   let wei = 0n;
   try {
@@ -89,6 +101,8 @@ function Dashboard({ address }: { address: `0x${string}` }) {
   const startUnbond = () => tx.run("Unbonding…", [() => write({ ...stake, functionName: "startUnbond", args: [wei] })]);
   const withdrawUnbond = () => tx.run("Withdrawing…", [() => write({ ...stake, functionName: "withdraw" })]);
   const withdrawEarnings = () => tx.run("Withdrawing…", [() => write({ ...market, functionName: "withdraw" })]);
+  const withdrawSwarm = () =>
+    tx.run("Withdrawing…", [() => write({ ...swarm, address: deployment.SwarmMarket!, functionName: "withdraw" })]);
   const mint = () =>
     tx.run("Minting…", [() => write({ ...token, functionName: "mint", args: [address, parseEther("1000")] })]);
 
@@ -127,6 +141,29 @@ function Dashboard({ address }: { address: `0x${string}` }) {
           </ul>
         )}
       </Section>
+
+      {deployment.SwarmMarket && (
+        <Section
+          title="Swarm work"
+          aside={
+            swarmEarnings !== undefined &&
+            swarmEarnings > 0n && (
+              <Button onClick={withdrawSwarm} disabled={!!tx.pending}>
+                Withdraw {fmtEth(swarmEarnings)} ETH
+              </Button>
+            )
+          }
+        >
+          <Note className="max-w-[62ch]">
+            Whenever this machine is not rented, its node takes tasks from swarm jobs. A run is paid when another host's
+            output matches it; a run that loses a tie-break is recorded as a fault.
+          </Note>
+          <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+            <Stat label="Earned">{swarmEarnings !== undefined ? `${fmtEth(swarmEarnings)} ETH` : "…"}</Stat>
+            <Stat label="Faults">{swarmFaults !== undefined ? swarmFaults.toString() : "…"}</Stat>
+          </dl>
+        </Section>
+      )}
 
       <Section title="Bond" aside={bondState && <Status tone={bondState[0]}>{bondState[1]}</Status>}>
         <Note className="max-w-[62ch]">
@@ -179,7 +216,7 @@ function RunANode() {
       <Note className="mt-4 max-w-[62ch]">
         In <span className="font-mono text-[12px] text-ink">.env</span>, set the wallet, the hourly price and the https
         address renters reach the node at. With Docker and the NVIDIA Container Toolkit each rental gets its own GPU
-        container. The full steps are in the{" "}
+        container. Between rentals the node works for the swarm; set GRID_SWARM=0 to turn that off. The full steps are in the{" "}
         <a className={linkClass} href={`${SOURCE_URL}#run-a-real-host`}>
           README
         </a>
