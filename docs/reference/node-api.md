@@ -22,7 +22,19 @@ Peers heard on the network in the last minute.
 
 ### `POST /access/:rentalId`
 
-The SSH login for a direct rental. The body is `{ "ts": <unix seconds>, "sig": "0x…" }`, where `sig` is the renter wallet's signature (EIP-191) of `grid-access:<rentalId>:<ts>`, made within the last five minutes. The node checks it against the renter recorded on-chain.
+The SSH login for a direct rental. The body is `{ "ts": <unix seconds>, "sig": "0x…" }`, where `sig` is the renter wallet's signature (EIP-191) of
+
+```
+grid-access
+chain:<chain id>
+market:<GridMarket address, lowercase>
+rental:<rentalId>
+ts:<ts>
+```
+
+made within two minutes of the node's clock. Naming the chain and market means a signature cannot be replayed against another deployment. The node checks it against the renter recorded on-chain, allows 30 attempts a minute per client, and never answers with internal error details. Relays do not forward this route: a relay reads what it forwards, and the reply carries the password.
+
+Clients must check the reply field by field and build the SSH command themselves from `host`, `port` and `user` (`parseAccessInfo` and `sshCommand` in `@grid/shared` do both).
 
 ```json
 { "rentalId": "0", "host": "gpu.example.com", "port": 2222, "user": "grid", "password": "…", "command": "ssh -p 2222 grid@gpu.example.com", "endsAt": 1793296805 }

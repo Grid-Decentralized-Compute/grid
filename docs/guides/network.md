@@ -26,7 +26,7 @@ Public nodes answer DHT queries; nodes behind routers only ask.
 
 A node with a public address and `GRID_RELAY=1` is a relay. A node without a public address keeps a connection open to one and publishes `<relay>/p2p/<peer id>` as its address.
 
-When a renter calls that address, the relay opens a libp2p stream to the peer on `/grid/http/1.0.0`, passes the request along as a length-prefixed JSON message and returns the answer. Only the public routes are passed on: health, peers, swarm results and access requests.
+When a renter calls that address, the relay opens a libp2p stream to the peer on `/grid/http/1.0.0`, passes the request along as a length-prefixed JSON message and returns the answer. Only public, read-only routes are passed on: health, peers and swarm results. Access requests are not, because a relay reads what it forwards and that reply carries an SSH password; machines behind a relay take swarm work only.
 
 A relay can read the requests it forwards. Swarm results are checked against on-chain hashes, so a relay cannot alter them unnoticed, but it can see them.
 

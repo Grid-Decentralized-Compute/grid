@@ -133,7 +133,8 @@ function Machines() {
   const items = (pages ?? []).flatMap((p) => (p.status === "success" ? [...p.result] : []));
   const metas = items.map((item) => parseMetadata(item.machine.metadata));
   // Every node's /health, once each; the rows below read the same cached results.
-  const health = useQueries({ queries: metas.map((meta) => healthQuery(meta?.endpoint)) });
+  // At most 100 nodes are checked: a flood of listings cannot turn visitors into a request cannon.
+  const health = useQueries({ queries: metas.map((meta, i) => healthQuery(i < 100 ? meta?.endpoint : undefined)) });
   const views: MachineView[] = items.map((item, i) => ({ item, meta: metas[i], ...machineStatus(item, metas[i], health[i]) }));
   const [filters, setFilters, clearFilters] = useFilters();
   const groups = gpuGroups(views);

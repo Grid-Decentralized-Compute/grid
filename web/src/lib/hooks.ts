@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useReadContract } from "wagmi";
-import { gridMarketAbi, type HealthInfo, isSecureEndpoint, parseMetadata, type PeersInfo } from "@grid/shared";
+import { gridMarketAbi, type HealthInfo, isPrivateHost, isSecureEndpoint, parseMetadata, type PeersInfo } from "@grid/shared";
 import { useDeployment } from "../contracts";
 
 /** Current unix time (seconds), re-rendering every `intervalMs`. */
@@ -20,8 +20,14 @@ export function useNow(intervalMs = 1000): number {
  */
 export function endpointBlocked(endpoint: string | undefined): boolean {
   if (!endpoint) return false;
-  if (window.location.protocol !== "https:") return isSecureEndpoint(endpoint) ? false : !isLocalDev();
-  return !isSecureEndpoint(endpoint);
+  if (isLocalDev()) return !isSecureEndpoint(endpoint);
+  // On the public site a listing may not point visitors' browsers at their own network.
+  try {
+    if (isPrivateHost(new URL(endpoint).hostname)) return true;
+  } catch {
+    return true;
+  }
+  return !endpoint.startsWith("https://");
 }
 
 /** Plain-http endpoints are tolerated while the app itself runs on localhost. */
@@ -75,8 +81,16 @@ export function usePeers() {
     queryFn: async (): Promise<PeersInfo | null> => {
       for (const relay of relays) {
         try {
-          const res = await fetch(`${relay}/peers`, { signal: AbortSignal.timeout(4_000) });
-          if (res.ok) return (await res.json()) as PeersInfo;
+          const res = await fetch(`${relay}/peers`, { signal: AbortSignal.timeout(4_000), redirect: "error" });
+          // A relay is a stranger: only a well-formed list is used, so a bad one cannot break the page.
+          const data = res.ok ? ((await res.json()) as Partial<PeersInfo>) : null;
+          if (data && Array.isArray(data.peers) && typeof data.self === "string") {
+            const peers = data.peers
+              .filter((p) => p && typeof p.name === "string" && typeof p.peer === "string")
+              .slice(0, 200)
+              .map((p) => ({ ...p, name: p.name.slice(0, 64) }));
+            return { self: data.self.slice(0, 64), peers };
+          }
         } catch {
           // try the next relay
         }

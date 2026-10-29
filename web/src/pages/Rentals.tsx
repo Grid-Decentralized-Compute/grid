@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ContractFunctionReturnType } from "viem";
-import { useAccount, useReadContract, useSignMessage } from "wagmi";
+import { useAccount, useChainId, useReadContract, useSignMessage } from "wagmi";
 import {
   type AccessInfo,
   type AccessRequest,
@@ -8,6 +8,7 @@ import {
   costSoFar,
   gridMarketAbi,
   isSecureEndpoint,
+  parseAccessInfo,
   parseMetadata,
 } from "@grid/shared";
 import { Button, ErrorText, linkClass, Page, Stat, Status } from "../components/ui";
@@ -108,6 +109,7 @@ function RentalRow({ view }: { view: RentalView }) {
   const deployment = useDeployment()!;
   const tx = useTx();
   const { signMessageAsync } = useSignMessage();
+  const chainId = useChainId();
   const [access, setAccess] = useState<AccessInfo | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -130,17 +132,26 @@ function RentalRow({ view }: { view: RentalView }) {
     setAccessError(null);
     try {
       const ts = Math.floor(Date.now() / 1000);
-      const sig = await signMessageAsync({ message: accessMessage(id, ts) });
+      // The message names this chain and market, so the signature is useless anywhere else.
+      const sig = await signMessageAsync({ message: accessMessage({ chainId, market: deployment.GridMarket, rentalId: id, ts }) });
       const body: AccessRequest = { ts, sig };
       const res = await fetch(`${meta.endpoint}/access/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(8000),
+        redirect: "error",
       });
-      const reply = await res.json();
-      if (!res.ok) throw new Error(reply.error ?? `The host replied ${res.status}`);
-      setAccess(reply as AccessInfo);
+      const text = await res.text();
+      if (text.length > 8_000) throw new Error("The host sent an oversized reply.");
+      const reply = JSON.parse(text) as { error?: unknown };
+      if (!res.ok) {
+        const said = typeof reply.error === "string" ? reply.error.replace(/[^\x20-\x7e]/g, "").slice(0, 120) : `status ${res.status}`;
+        throw new Error(`The host says: ${said}`);
+      }
+      const info = parseAccessInfo(reply);
+      if (!info) throw new Error("The host sent access details in a form Grid does not accept.");
+      setAccess(info);
     } catch (e) {
       setAccessError(shortError(e));
     } finally {
@@ -189,7 +200,7 @@ function RentalRow({ view }: { view: RentalView }) {
       )}
 
       {access && active && (
-        <div className="mt-4 overflow-x-auto rounded-[3px] bg-plate px-4 py-3 font-mono text-[13px] leading-relaxed">
+        <div className="mt-4 whitespace-pre-wrap break-all rounded-[3px] bg-plate px-4 py-3 font-mono text-[13px] leading-relaxed">
           <div>
             <span className="select-none text-faint">$ </span>
             {access.command}

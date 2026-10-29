@@ -15,9 +15,10 @@ The node reads these settings from its environment or from `node/.env` (start fr
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `GRID_NAME` | hostname | Name shown in the market |
+| `GRID_NAME` | `grid-host` | Name shown in the market. It is published on-chain, so it never defaults to the computer's hostname |
 | `GRID_PRICE_PER_HOUR` | `0.001` | ETH per hour |
 | `GRID_PORT` | `7777` | Port of the node's HTTP API |
+| `GRID_BIND` | `0.0.0.0` | Address the API listens on. `127.0.0.1` when it is only reached through a local tunnel (the setup script sets this) |
 | `GRID_PUBLIC_URL` | unset | Where renters reach the API; must be https off a local chain. Unset (or `none`) means behind a router: reached through a relay, swarm only |
 | `GRID_ALLOW_HTTP` | unset | `1` accepts a plain http `GRID_PUBLIC_URL`. For experiments only |
 | `GRID_SSH_HOST` | host of `GRID_PUBLIC_URL` | Where renters SSH in |
@@ -32,7 +33,8 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_SWARM` | on | `0` keeps the node out of the swarm |
 | `GRID_SWARM_MIN_PRICE` | `0` | Lowest ETH per run to accept |
 | `GRID_SWARM_BATCH` | `4` | Tasks claimed per round, 1 to 32 |
-| `GRID_SWARM_NETWORK` | off | `1` lets task containers reach the network |
+| `GRID_SWARM_NETWORK` | off | `1` lets task containers reach the network, including this machine's LAN. Leave it off unless you trust the jobs |
+| `GRID_SWARM_KEEP_HOURS` | `72` | Hours a swarm job's outputs are kept for renters to fetch before they are deleted |
 | `GRID_SWARM_CHEAT` | off | `1` submits wrong results, to test tie-breaks on a local chain. Never use it elsewhere |
 
 ## Network
@@ -43,6 +45,7 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_P2P_ANNOUNCE` | derived from `GRID_PUBLIC_URL` | Comma-separated multiaddrs other peers should dial |
 | `GRID_BOOTSTRAP` | none | Comma-separated multiaddrs ending in `/p2p/<peer id>`, dialled besides the peers listed on-chain |
 | `GRID_RELAY` | off | `1` makes this node a relay for peers behind routers. Needs `GRID_PUBLIC_URL` |
+| `GRID_ALLOW_PRIVATE_PEERS` | off | `1` lets the node dial peers on private networks. Always on for a local Anvil chain; leave it off elsewhere |
 
 ## Housekeeping
 

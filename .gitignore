@@ -2,6 +2,13 @@ node_modules/
 dist/
 *.log
 .env
+.env.*
+*.pem
+*.key
+# local working files that must never be published
+.claude/
+.playwright-mcp/
+CLAUDE.md
 
 # Foundry
 contracts/out/

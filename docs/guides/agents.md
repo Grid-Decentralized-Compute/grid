@@ -24,8 +24,10 @@ Make a new wallet for the agent and send it only what it may spend. The server s
 ### Claude Code
 
 ```bash
-claude mcp add grid -e GRID_AGENT_PRIVATE_KEY=0x... -e GRID_AGENT_MAX_SPEND=0.02 -- node /path/to/grid/mcp/dist/grid-mcp.mjs
+claude mcp add grid -e GRID_AGENT_MAX_SPEND=0.02 -e GRID_AGENT_MAX_TOTAL=0.1 -- node --env-file=/path/to/grid-agent.env /path/to/grid/mcp/dist/grid-mcp.mjs
 ```
+
+Keep the key in that env file (`GRID_AGENT_PRIVATE_KEY=0x...`, readable only by you: `chmod 600`) rather than on the command line, where it would end up in your shell history and in the client's config.
 
 ### Other MCP clients
 
@@ -39,7 +41,8 @@ Most clients take a JSON entry like this one:
       "args": ["/path/to/grid/mcp/dist/grid-mcp.mjs"],
       "env": {
         "GRID_AGENT_PRIVATE_KEY": "0x...",
-        "GRID_AGENT_MAX_SPEND": "0.02"
+        "GRID_AGENT_MAX_SPEND": "0.02",
+        "GRID_AGENT_MAX_TOTAL": "0.1"
       }
     }
   }
@@ -54,6 +57,8 @@ Without `GRID_AGENT_PRIVATE_KEY` the server still runs and can browse the market
 | --- | --- | --- |
 | `GRID_AGENT_PRIVATE_KEY` | unset | The agent's wallet. Fund it with only what the agent may spend |
 | `GRID_AGENT_MAX_SPEND` | `0.02` | Most ETH one transaction may carry. A rental or job above it is refused with the reason |
+| `GRID_AGENT_MAX_TOTAL` | `0.1` | Most ETH all transactions together may carry in any 24 hours |
+| `GRID_AGENT_MAX_RENTALS` | `2` | Most rentals the wallet may have running at once |
 | `GRID_CHAIN_ID` | `46630` | `46630` Robinhood Chain testnet, `4663` Robinhood Chain, `31337` a local Anvil chain |
 | `GRID_RPC_URL` | the chain's public RPC | Another RPC endpoint |
 
@@ -88,7 +93,10 @@ An agent that holds a host's wallet can run that host's business: watch `my_mach
 
 ## Things to know
 
-* **Keys and limits.** The server never sends the key anywhere; it signs locally. Most clients ask before each tool call, and `GRID_AGENT_MAX_SPEND` caps any single transaction. The real limit is what the wallet holds.
+* **Keys and limits.** The server never sends the key anywhere; it signs locally. Every tool that spends, ends or changes something is marked so clients ask before running it, and three limits apply on top: per transaction, per 24 hours and rentals at once. The hard limit is still what the wallet holds.
+* **Strangers' text is labelled.** Machine names, hardware strings, host messages and swarm outputs are written by strangers. The server strips control and invisible characters, caps their length and tells the agent to treat them as data, never as instructions.
+* **No requests into private networks.** Addresses come from on-chain listings, so the server only calls https addresses that resolve to public IPs, never follows redirects and caps every reply's size. A listing cannot point it at the agent's own network or a cloud metadata service.
+* **Hardware is the host's word.** After renting, check the GPU with `nvidia-smi` and end the rental if it does not match; you pay only for the minutes used.
 * **Logins reach the agent.** `get_access` returns the SSH password to the agent, so it can use the machine.
 * **Swarm inputs are public.** They are published on-chain with the job; never put secrets in them.
 * **Testnet first.** Grid runs on Robinhood Chain testnet until the Robinhood Chain launch; its ETH has no value.

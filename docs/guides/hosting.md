@@ -14,10 +14,12 @@ The node is the program a host runs next to its GPU. It lists the machine, serve
 On Ubuntu 22.04 or 24.04 with an NVIDIA driver 570 or newer, one script does the rest: it installs Docker, the NVIDIA Container Toolkit, Node.js and cloudflared, builds the rental image and checks the GPU works inside it, writes `node/.env` with a new host wallet, and installs the node as a systemd service.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Grid-Decentralized-Compute/grid/main/scripts/host-setup.sh | bash
+curl -fsSLo host-setup.sh https://raw.githubusercontent.com/Grid-Decentralized-Compute/grid/main/scripts/host-setup.sh
+less host-setup.sh          # read it first
+GRID_PUBLIC_URL=https://node1.example.com bash host-setup.sh
 ```
 
-It is safe to run again. Its settings and every step are described at the top of [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh).
+The node runs as its own `grid` system user from `/opt/grid` under a locked-down systemd service, never as your account. Renters' containers get their own docker network, and firewall rules (restored at every boot) stop them reaching your LAN, your router or the machine itself. The script refuses an NVIDIA Container Toolkit older than 1.17.8, which has public container-escape bugs, and turns on automatic security updates. Set `GRID_REF` to a tag or commit to run exactly a version you have reviewed. It is safe to run again. Its settings and every step are described at the top of [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh).
 
 ## Start by hand
 

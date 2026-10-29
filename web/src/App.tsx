@@ -44,6 +44,7 @@ export default function App() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1040px] flex-col px-5 sm:px-8">
+      <ErrorBoundary key="header">
       <header className="flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
         <Link href="/" className="flex items-center gap-2.5 font-serif text-[21px] font-normal leading-none tracking-[-0.01em]">
           <Mark />
@@ -78,6 +79,7 @@ export default function App() {
           <Wallet />
         </div>
       </header>
+      </ErrorBoundary>
 
       <main className="flex-1 pb-28 pt-12 sm:pt-20">
         {/* Direct and Swarm are one page, so switching between them keeps it mounted. */}
@@ -95,7 +97,10 @@ export default function App() {
         </ErrorBoundary>
       </main>
 
-      <Caseback />
+      {/* The footer shows what relays report; nothing a stranger sends may blank the page. */}
+      <ErrorBoundary key="footer">
+        <Caseback />
+      </ErrorBoundary>
     </div>
   );
 }
