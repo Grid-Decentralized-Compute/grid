@@ -1,0 +1,27 @@
+{
+  "name": "grid-mcp",
+  "private": true,
+  "license": "MIT",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Grid for AI agents: an MCP server that finds, rents and hosts GPUs, and runs swarm jobs, with a wallet.",
+  "bin": {
+    "grid-mcp": "./dist/grid-mcp.mjs"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@grid/shared": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "tsx": "^4.20.0",
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.0"
+  }
+}

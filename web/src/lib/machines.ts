@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ContractFunctionReturnType } from "viem";
-import type { gridMarketAbi, MachineMetadata } from "@grid/shared";
+import { type gridMarketAbi, gpuModel, type MachineMetadata } from "@grid/shared";
 import type { Tone } from "../components/ui";
 import { endpointBlocked } from "./hooks";
+
+export { gpuModel };
 
 export type Listing = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getListings">[number];
 
@@ -38,23 +40,6 @@ export function machineStatus(
                   ? ["off", "Needs bond"]
                   : ["ok", "Available"];
   return { tone, label, free: label === "Available" };
-}
-
-/**
- * The model alone, as people say it: "NVIDIA GeForce RTX 4090" → "RTX 4090", "NVIDIA A100-SXM4-80GB"
- * → "A100", "NVIDIA H100 80GB HBM3" → "H100". Memory is shown beside it, so it is dropped from the
- * name. Machines without a GPU are "CPU only".
- */
-export function gpuModel(meta: MachineMetadata | null): string {
-  if (!meta) return "Unknown";
-  if (meta.gpuCount === 0 || !meta.gpu.trim()) return "CPU only";
-  const name = meta.gpu
-    .replace(/^(NVIDIA|AMD|Intel)\s+/i, "")
-    .replace(/^(GeForce|Radeon)\s+/i, "")
-    .replace(/[-\s](SXM\d*|PCIe|NVL|HBM\d*e?|\d+\s?GB)\b.*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return name || meta.gpu.trim();
 }
 
 /** The GPU index groups machines by model and memory size; this is that group's id. */

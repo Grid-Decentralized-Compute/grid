@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { linkClass } from "../components/ui";
-import { SOURCE_URL } from "../lib/links";
+import { DOCS_URL, SOURCE_URL } from "../lib/links";
 import { Link } from "../router";
 
 const Code = ({ children }: { children: ReactNode }) => (
@@ -120,6 +120,17 @@ export function About() {
           Running a node
         </Link>{" "}
         takes a wallet, an https address for the node and a few minutes of setup.
+      </p>
+
+      <H2>Agents</H2>
+      <p>
+        Grid needs no account, only a wallet, so an AI agent can use it on its own. The Grid MCP server gives agents
+        such as Claude or ChatGPT the market as tools: find free GPUs, rent one and get its SSH login, run swarm jobs and
+        collect outputs two hosts agreed on, and run the host side of a machine. Each transaction is capped by a spending
+        limit, and the agent spends only what its wallet holds.{" "}
+        <a className={linkClass} href={`${DOCS_URL}/guides/agents`}>
+          Setting it up
+        </a>
       </p>
 
       <H2>GRID</H2>

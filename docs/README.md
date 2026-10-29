@@ -28,6 +28,7 @@ Grid lets people rent computing time from the people who own the machines. It ha
 | The node | The program a host runs: direct rentals, swarm work when idle, the peer-to-peer network |
 | The network | libp2p: encrypted connections, a DHT, signed heartbeats, relays for machines behind routers |
 | The site | Reads the contracts and talks to nodes. It holds nothing, and anyone can run their own |
+| The MCP server | Grid as tools for AI agents: find, rent and host GPUs and run swarm jobs from a wallet. See [Grid for AI agents](guides/agents.md) |
 
 ## Status
 

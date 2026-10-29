@@ -10,6 +10,13 @@ server sits in between. There are two ways to rent:
 
 **Site:** [gridcompute.net](https://gridcompute.net) · **Docs:** [grid-compute.gitbook.io/docs](https://grid-compute.gitbook.io/docs) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
 
+## AI agents
+
+`mcp/` is an MCP server that gives AI agents Grid as tools: find free GPUs, rent one and get the SSH
+login, run swarm jobs and collect checked outputs, and run the host side of a machine, all from a
+wallet with a per-transaction spending limit. `npm run mcp:build` writes `mcp/dist/grid-mcp.mjs`;
+setup for Claude Code and other clients is in [Grid for AI agents](docs/guides/agents.md).
+
 ## Direct rental
 
 1. A host runs `node/` on a machine. It publishes the machine (GPU, RAM, price per hour and the

@@ -110,6 +110,23 @@ function parseP2p(v: unknown): MachineMetadata["p2p"] {
   return { peer: o.peer.slice(0, 128), addrs, relay: o.relay === true, direct: o.direct !== false };
 }
 
+/**
+ * The model alone, as people say it: "NVIDIA GeForce RTX 4090" → "RTX 4090", "NVIDIA A100-SXM4-80GB"
+ * → "A100", "NVIDIA H100 80GB HBM3" → "H100". Memory is shown beside it, so it is dropped from the
+ * name. Machines without a GPU are "CPU only".
+ */
+export function gpuModel(meta: MachineMetadata | null): string {
+  if (!meta) return "Unknown";
+  if (meta.gpuCount === 0 || !meta.gpu.trim()) return "CPU only";
+  const name = meta.gpu
+    .replace(/^(NVIDIA|AMD|Intel)\s+/i, "")
+    .replace(/^(GeForce|Radeon)\s+/i, "")
+    .replace(/[-\s](SXM\d*|PCIe|NVL|HBM\d*e?|\d+\s?GB)\b.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name || meta.gpu.trim();
+}
+
 /** Loopback addresses may use plain http (local development). */
 export function isLoopbackHost(hostname: string): boolean {
   return (

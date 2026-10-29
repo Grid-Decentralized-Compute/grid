@@ -4,12 +4,13 @@
   "license": "MIT",
   "version": "0.0.1",
   "type": "module",
-  "description": "Grid — decentralized compute network. Rent GPUs peer to peer, pay in ETH on Robinhood Chain, hosts bonded with GRID.",
+  "description": "Grid \u2014 decentralized compute network. Rent GPUs peer to peer, pay in ETH on Robinhood Chain, hosts bonded with GRID.",
   "workspaces": [
     "contracts",
     "packages/*",
     "node",
-    "web"
+    "web",
+    "mcp"
   ],
   "scripts": {
     "chain": "anvil",
@@ -19,7 +20,9 @@
     "deploy:testnet": "npm run deploy:testnet -w contracts",
     "node": "npm run start -w grid-node",
     "web": "npm run dev -w web",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "mcp": "npm run start -w grid-mcp",
+    "mcp:build": "npm run build -w grid-mcp"
   },
   "engines": {
     "node": ">=22.22.0"

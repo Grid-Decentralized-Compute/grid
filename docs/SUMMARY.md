@@ -9,6 +9,7 @@
 * [Running a swarm job](guides/swarm.md)
 * [Running a node](guides/hosting.md)
 * [The peer-to-peer network](guides/network.md)
+* [Grid for AI agents](guides/agents.md)
 * [GRID](guides/grid.md)
 
 ## Reference
