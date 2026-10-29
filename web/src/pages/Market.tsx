@@ -173,7 +173,11 @@ function MachineRow({ item, bondingOff }: { item: Listing; bondingOff: boolean }
   const canRent = rentable && !isMine && !blocked && online && maxHours >= 1;
   const total = machine.pricePerHour * BigInt(Math.max(1, hours));
 
-  const [tone, label]: [Tone, string] = !machine.available
+  // A host behind NAT has no reachable SSH port: it takes swarm work only.
+  const swarmOnly = meta?.p2p?.direct === false;
+  const [tone, label]: [Tone, string] = swarmOnly
+    ? ["off", "Swarm only"]
+    : !machine.available
     ? ["off", "Paused"]
     : busy
       ? ["busy", "Rented"]
@@ -202,7 +206,12 @@ function MachineRow({ item, bondingOff }: { item: Listing; bondingOff: boolean }
   }
 
   const gpu = meta ? (meta.gpuCount > 0 ? `${meta.gpuCount > 1 ? `${meta.gpuCount}× ` : ""}${meta.gpu}` : "No GPU") : "—";
-  const host = [shortAddr(machine.host), isMine ? "you" : null, bondingOff ? null : hostBonded ? "bonded" : "trial"]
+  const host = [
+    shortAddr(machine.host),
+    isMine ? "you" : null,
+    swarmOnly ? "relayed" : null,
+    bondingOff ? null : hostBonded ? "bonded" : "trial",
+  ]
     .filter(Boolean)
     .join(" · ");
 

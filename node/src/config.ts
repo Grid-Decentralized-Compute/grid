@@ -12,8 +12,11 @@ export type Config = {
   name: string;
   pricePerHourWei: bigint;
   port: number;
-  /** Where renters reach the HTTP API; published on-chain. */
-  publicUrl: string;
+  /**
+   * Where renters reach the HTTP API directly. null = behind NAT: the node is reached through a relay's
+   * gateway instead, and cannot take direct SSH rentals.
+   */
+  publicUrl: string | null;
   /** Hostname renters SSH into (defaults to the public URL's host). */
   sshHost: string;
   sshPort: number;
@@ -32,6 +35,14 @@ export type Config = {
   swarmNetwork: boolean;
   /** Testing only: submit wrong results, to exercise the tie-break. */
   swarmCheat: boolean;
+  /** TCP port of the libp2p host. */
+  p2pPort: number;
+  /** Multiaddrs this node tells peers to dial (public nodes only). */
+  p2pAnnounce: string[];
+  /** Extra peers to dial at start, as multiaddrs ending in /p2p/<peer id>. */
+  p2pBootstrap: string[];
+  /** Serve as a relay: forward circuits for NAT'd peers and their HTTP through /p2p/<peer>. */
+  relay: boolean;
 };
 
 /** anvil account #1 — the default host on a local chain (account #0 deploys, #2 and #3 are the web's dev wallets). */
@@ -59,20 +70,28 @@ export function loadConfig(): Config {
   }
 
   const port = Number(env("GRID_PORT", "7777"));
-  const publicUrl = env("GRID_PUBLIC_URL", `http://127.0.0.1:${port}`).replace(/\/+$/, "");
-  let url: URL;
-  try {
-    url = new URL(publicUrl);
-  } catch {
-    throw new Error(`GRID_PUBLIC_URL is not a URL: ${publicUrl}`);
+  // Unset means "behind NAT" on a real chain; a local chain defaults to this machine. "none" forces NAT mode.
+  const rawPublic = env("GRID_PUBLIC_URL", chainId === 31337 ? `http://127.0.0.1:${port}` : "none");
+  const publicUrl = rawPublic === "none" ? null : rawPublic.replace(/\/+$/, "");
+  let url: URL | null = null;
+  if (publicUrl) {
+    try {
+      url = new URL(publicUrl);
+    } catch {
+      throw new Error(`GRID_PUBLIC_URL is not a URL: ${publicUrl}`);
+    }
   }
   // The SSH password is fetched over this URL, and a web app served over https cannot even
   // call an http:// host, so outside local development the endpoint has to be https.
-  if (!isSecureEndpoint(publicUrl) && chainId !== 31337 && process.env.GRID_ALLOW_HTTP !== "1") {
+  if (publicUrl && !isSecureEndpoint(publicUrl) && chainId !== 31337 && process.env.GRID_ALLOW_HTTP !== "1") {
     throw new Error(
       `GRID_PUBLIC_URL must be https:// (put a Cloudflare tunnel, Tailscale Funnel or a reverse proxy with a certificate in front of port ${port}); set GRID_ALLOW_HTTP=1 only to accept that renters' passwords travel unencrypted`,
     );
   }
+
+  const p2pPort = Number(env("GRID_P2P_PORT", "4001"));
+  const relay = process.env.GRID_RELAY === "1";
+  if (relay && !publicUrl) throw new Error("GRID_RELAY=1 needs GRID_PUBLIC_URL: a relay must be reachable to forward for others");
 
   const simulateEnv = process.env.GRID_SIMULATE;
   const simulate: Config["simulate"] =
@@ -88,7 +107,7 @@ export function loadConfig(): Config {
     pricePerHourWei: parseEther(env("GRID_PRICE_PER_HOUR", "0.001")),
     port,
     publicUrl,
-    sshHost: env("GRID_SSH_HOST", url.hostname),
+    sshHost: env("GRID_SSH_HOST", url?.hostname ?? ""),
     sshPort: Number(env("GRID_SSH_PORT", "2222")),
     simulate,
     dockerImage: env("GRID_DOCKER_IMAGE", "lscr.io/linuxserver/openssh-server:latest"),
@@ -99,7 +118,19 @@ export function loadConfig(): Config {
     swarmBatch: Math.min(32, Math.max(1, Number(env("GRID_SWARM_BATCH", "4")))),
     swarmNetwork: process.env.GRID_SWARM_NETWORK === "1",
     swarmCheat: process.env.GRID_SWARM_CHEAT === "1",
+    p2pPort,
+    p2pAnnounce: list(process.env.GRID_P2P_ANNOUNCE) ?? (url ? [announceFor(url.hostname, p2pPort)] : []),
+    p2pBootstrap: list(process.env.GRID_BOOTSTRAP) ?? [],
+    relay,
   };
+}
+
+const list = (value: string | undefined) =>
+  value ? value.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+/** /ip4/1.2.3.4/tcp/4001 for an address, /dns4/host/tcp/4001 for a name. */
+function announceFor(host: string, port: number) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ? `/ip4/${host}/tcp/${port}` : `/dns4/${host}/tcp/${port}`;
 }
 
 /** Swarm work is on by default wherever SwarmMarket is deployed; GRID_SWARM=0 turns it off. */

@@ -1,9 +1,11 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { formatEther } from "viem";
 import type { MachineMetadata } from "@grid/shared";
 import { Chain } from "./chain";
 import { loadConfig } from "./config";
 import { probeHardware } from "./hardware";
 import { log } from "./log";
+import { P2P } from "./p2p";
 import { startServer } from "./server";
 import { SessionManager } from "./sessions";
 import { SwarmWorker } from "./swarm";
@@ -19,7 +21,6 @@ async function main() {
   await sessions.init();
 
   const hardware = await probeHardware(config.simulate === true);
-  const metadata: MachineMetadata = { v: 1, name: config.name, ...hardware, endpoint: config.publicUrl };
 
   log(`host ${chain.address} on ${config.chain.name} (chain ${config.chain.id}), market ${config.market}`);
   log(
@@ -28,18 +29,81 @@ async function main() {
   );
   if (sessions.mode === "docker" && hardware.gpuCount > 0) await sessions.preflightGpu();
 
-  const machineId = await chain.ensureListed(JSON.stringify(metadata), config.pricePerHourWei);
-  log(`listed as machine #${machineId}, reachable at ${config.publicUrl}, ssh via ${config.sshHost}:${config.sshPort}`);
+  // Join the peer-to-peer network. Peers listed on-chain are the way in; GRID_BOOTSTRAP adds more.
+  const p2p = await P2P.start(config, chain);
+  await p2p.dial([...config.p2pBootstrap, ...(await chain.listedPeerAddrs())]);
+
+  // Where renters reach this node: its own URL, or the gateway of a relay it is connected to.
+  const direct = config.publicUrl !== null;
+  const reachableAt = () => {
+    if (config.publicUrl) return config.publicUrl;
+    const relay = p2p.connectedRelay();
+    return relay ? `${relay}/p2p/${p2p.peerId}` : null;
+  };
+  if (!direct) {
+    log("p2p: no public address — looking for a relay");
+    for (let i = 0; i < 30 && !reachableAt(); i++) await sleep(1_000);
+  }
+  let endpoint = reachableAt();
+  const metadataFor = (at: string | null) => {
+    const metadata: MachineMetadata = {
+      v: 1,
+      name: config.name,
+      ...hardware,
+      endpoint: at ?? "",
+      p2p: { peer: p2p.peerId, addrs: p2p.addrs, relay: config.relay, direct },
+    };
+    return JSON.stringify(metadata);
+  };
+
+  // Behind NAT the SSH port cannot be reached, so the listing stays closed to direct rentals.
+  const machineId = await chain.ensureListed(metadataFor(endpoint), config.pricePerHourWei, direct);
+  log(
+    `listed as machine #${machineId}, reachable at ${endpoint ?? "nowhere yet"}` +
+      (direct ? `, ssh via ${config.sshHost}:${config.sshPort}` : " (swarm only: no public address for SSH)"),
+  );
 
   // Containers from an earlier run are stale unless their rental is still running on-chain.
   const activeAtStart = activeOf(await chain.getMachine(machineId));
   await sessions.sweep(activeAtStart);
 
   const swarm = config.swarm ? new SwarmWorker(config, chain, sessions.mode === "docker", hardware.gpuCount > 0) : null;
-  if (swarm) await swarm.register();
+  if (swarm) await swarm.register(endpoint);
   else log("swarm: off (GRID_SWARM=0 or no SwarmMarket on this chain)");
 
-  startServer({ port: config.port, machineId, name: config.name, version: VERSION, chain, sessions, swarm });
+  startServer({
+    port: config.port,
+    machineId,
+    name: config.name,
+    version: VERSION,
+    chain,
+    sessions,
+    swarm,
+    p2p,
+    relay: config.relay,
+  });
+
+  p2p.startHeartbeats(() => ({
+    name: config.name,
+    endpoint,
+    relay: config.relay ? config.publicUrl : null,
+    direct,
+    busy: sessions.busy,
+  }));
+
+  // A node behind NAT follows its relay: if the relay changes, so do its listing and results address.
+  setInterval(async () => {
+    const next = reachableAt();
+    if (next === endpoint) return;
+    try {
+      log(`p2p: now reachable at ${next ?? "nowhere"} (was ${endpoint ?? "nowhere"})`);
+      endpoint = next;
+      await chain.ensureListed(metadataFor(endpoint), config.pricePerHourWei, direct);
+      if (swarm) await swarm.register(endpoint);
+    } catch (e) {
+      log(`p2p: could not publish the new address: ${firstLine(e)}`);
+    }
+  }, 20_000);
 
   // The chain is the source of truth: every few seconds compare its view of this
   // machine with the session we are running and start, stop or settle as needed.
@@ -109,6 +173,7 @@ async function main() {
     log("marking the machine unavailable");
     await sessions.stopAll();
     await chain.setAvailable(machineId, false).catch((e: Error) => log(`could not mark unavailable: ${firstLine(e)}`));
+    await p2p.stop().catch(() => {});
     process.exit(0);
   }
   process.on("SIGINT", () => void shutdown());

@@ -1,6 +1,6 @@
 import { type Abi, type Address, createPublicClient, createWalletClient, http, parseEventLogs, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { gridMarketAbi } from "@grid/shared";
+import { gridMarketAbi, parseMetadata } from "@grid/shared";
 import type { Config } from "./config";
 import { log } from "./log";
 import { readState, writeState } from "./state";
@@ -41,7 +41,7 @@ export class Chain {
    * Lists this machine once. Later runs reuse the id saved in the state file and
    * push a fresh price/metadata if anything changed (new endpoint, new price).
    */
-  async ensureListed(metadata: string, priceWei: bigint): Promise<bigint> {
+  async ensureListed(metadata: string, priceWei: bigint, available = true): Promise<bigint> {
     const state = readState(this.config.stateDir);
     if (
       state &&
@@ -53,8 +53,8 @@ export class Chain {
       // A reset local chain can reuse the same addresses with no machines yet: a revert here means "relist".
       const m = await this.getMachine(id).catch(() => null);
       if (m && m.host.toLowerCase() === this.address.toLowerCase()) {
-        if (m.metadata !== metadata || m.pricePerHour !== priceWei || !m.available) {
-          await this.send({ ...this.market, functionName: "updateMachine", args: [id, priceWei, true, metadata] });
+        if (m.metadata !== metadata || m.pricePerHour !== priceWei || m.available !== available) {
+          await this.send({ ...this.market, functionName: "updateMachine", args: [id, priceWei, available, metadata] });
           log(`refreshed listing #${id} (price or metadata changed)`);
         }
         return id;
@@ -71,7 +71,15 @@ export class Chain {
       host: this.address,
       machineId: id.toString(),
     });
+    // A new listing starts open; close it right away when this machine cannot take direct rentals.
+    if (!available) await this.setAvailable(id, false);
     return id;
+  }
+
+  /** libp2p addresses other hosts published in their listings: where to join the network. */
+  async listedPeerAddrs(): Promise<string[]> {
+    const page = await this.publicClient.readContract({ ...this.market, functionName: "getListings", args: [0n, 200n] });
+    return page.flatMap(({ machine }) => parseMetadata(machine.metadata)?.p2p?.addrs ?? []);
   }
 
   async setAvailable(id: bigint, available: boolean) {

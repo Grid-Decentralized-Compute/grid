@@ -44,16 +44,23 @@ export class SwarmWorker {
     this.resultsDir = join(config.stateDir, "results", config.swarm!.toLowerCase());
   }
 
-  /** Publishes where renters fetch this host's outputs. */
-  async register() {
+  private endpoint: string | null = null;
+
+  /** Publishes where renters fetch this host's outputs; with no address the node does not take tasks. */
+  async register(endpoint: string | null) {
+    this.endpoint = endpoint;
+    if (!endpoint) {
+      log("swarm: waiting for an address renters can reach (a relay) before taking tasks");
+      return;
+    }
     const current = await this.chain.publicClient.readContract({
       ...this.swarm,
       functionName: "workerEndpoint",
       args: [this.chain.address],
     });
-    if (current !== this.config.publicUrl) {
-      await this.chain.send({ ...this.swarm, functionName: "registerWorker", args: [this.config.publicUrl] });
-      log(`swarm: registered ${this.config.publicUrl} for results`);
+    if (current !== endpoint) {
+      await this.chain.send({ ...this.swarm, functionName: "registerWorker", args: [endpoint] });
+      log(`swarm: results served at ${endpoint}`);
     }
     log(
       `swarm: on (${this.docker ? "docker" : "simulated"} tasks, batch ${this.config.swarmBatch}, ` +
@@ -63,6 +70,7 @@ export class SwarmWorker {
 
   /** One round of work. Returns true when tasks were run. */
   async round(): Promise<boolean> {
+    if (!this.endpoint) return false;
     const pick = await this.findWork();
     if (!pick) return false;
     const { jobId, tasks, manifest } = pick;

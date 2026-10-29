@@ -41,13 +41,25 @@ Swarm work needs a GRID bond whenever bonding is on. Outputs must be determinist
 public. Set `GRID_SWARM=0` to keep a node out of the swarm; `GRID_SWARM_CHEAT=1` makes a test node
 submit wrong results so the tie-break can be exercised locally.
 
+## Peer-to-peer network
+
+Every node is a libp2p peer (TCP, Noise, yamux, a Kademlia DHT on `/grid/kad/1.0.0`, AutoNAT, DCUtR
+hole punching and circuit relay v2). Nodes dial the peers listed on-chain to join, then announce
+themselves every 15 seconds on the gossipsub topic `grid/heartbeat/1`, signed by their host wallet.
+A node without a public address keeps a connection to a relay (`GRID_RELAY=1`) and publishes
+`<relay>/p2p/<peer id>` as its address; the relay forwards renters' requests to it over
+`/grid/http/1.0.0`. Such nodes take swarm work only, since their SSH port cannot be reached.
+
+Full documentation: [docs/](docs/README.md) (GitBook format).
+
 ## Layout
 
 | Folder             | What                                                                                                   | Stack              |
 | ------------------ | ------------------------------------------------------------------------------------------------------ | ------------------ |
 | `contracts/`       | `GridMarket` (direct rentals), `SwarmMarket` (swarm jobs), `StakeRegistry` (GRID bonds), `MockGRID`   | Foundry            |
-| `node/`            | Host daemon: direct rentals over SSH, swarm tasks when idle, serves `/health`, `/access`, `/results`   | Node 22+, viem     |
+| `node/`            | Host daemon: direct rentals, swarm tasks when idle, libp2p peer and relay, HTTP API                    | Node 22+, libp2p   |
 | `web/`             | The whole site at one URL: market (direct /, swarm /swarm, /jobs/:id), rentals, host, about, legal   | Vite, React, wagmi |
+| `docs/`            | Documentation in GitBook format (`.gitbook.yaml`, `SUMMARY.md`)                                        | Markdown           |
 | `packages/shared/` | Chain definitions, generated ABIs and addresses, wire types shared by web and node                     | TypeScript         |
 
 `packages/shared/src/generated/` is committed so a checkout without Foundry can still type-check,

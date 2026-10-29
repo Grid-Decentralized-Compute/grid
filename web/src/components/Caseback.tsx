@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useBlockNumber, useChainId, useChains } from "wagmi";
 import { useDeployment } from "../contracts";
 import { shortAddr } from "../lib/format";
-import { SOURCE_URL, X_URL } from "../lib/links";
+import { usePeers } from "../lib/hooks";
+import { DOCS_URL, SOURCE_URL, X_URL } from "../lib/links";
 import { Link } from "../router";
 
 /**
@@ -14,6 +15,7 @@ export function Caseback() {
   const chain = useChains().find((c) => c.id === chainId);
   const deployment = useDeployment();
   const { data: block } = useBlockNumber({ watch: true });
+  const { data: peers } = usePeers();
   const [tick, setTick] = useState(false);
 
   // One beat of the steel index per new block.
@@ -38,6 +40,16 @@ export function Caseback() {
           />
           Block {block !== undefined ? block.toLocaleString("en-US") : "—"}
         </span>
+        {peers && (
+          <span
+            className="tnum"
+            title={peers.peers
+              .map((p) => `${p.name}${p.relay ? " (relay)" : p.direct ? "" : " (behind a relay)"}`)
+              .join("\n")}
+          >
+            {peers.peers.length} {peers.peers.length === 1 ? "peer" : "peers"} online
+          </span>
+        )}
         {deployment &&
           (explorer ? (
             <a
@@ -52,6 +64,9 @@ export function Caseback() {
         <nav aria-label="Links" className="flex gap-6 sm:ml-auto">
           <a href={X_URL} className={linkClass}>
             X
+          </a>
+          <a href={DOCS_URL} className={linkClass}>
+            Docs
           </a>
           <a href={SOURCE_URL} className={linkClass}>
             GitHub

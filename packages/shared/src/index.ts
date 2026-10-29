@@ -59,9 +59,12 @@ export type MachineMetadata = {
   /**
    * Base URL of the host node's HTTP API, e.g. https://gpu.example.com. It must be https://
    * (plain http:// only on localhost): renters fetch their SSH password over it, and a web app
-   * served over https cannot call an http:// host at all.
+   * served over https cannot call an http:// host at all. A node behind NAT publishes its relay's
+   * gateway, <relay>/p2p/<peer id>.
    */
   endpoint: string;
+  /** libp2p identity of the node, and whether it can take direct SSH rentals (false behind NAT). */
+  p2p?: { peer: string; addrs: string[]; relay: boolean; direct: boolean };
 };
 
 /**
@@ -95,7 +98,16 @@ export function parseMetadata(json: string): MachineMetadata | null {
     diskGb: num("diskGb"),
     os: str("os"),
     endpoint,
+    p2p: parseP2p(o.p2p),
   };
+}
+
+function parseP2p(v: unknown): MachineMetadata["p2p"] {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.peer !== "string") return undefined;
+  const addrs = Array.isArray(o.addrs) ? o.addrs.filter((a): a is string => typeof a === "string").slice(0, 8) : [];
+  return { peer: o.peer.slice(0, 128), addrs, relay: o.relay === true, direct: o.direct !== false };
 }
 
 /** Loopback addresses may use plain http (local development). */
@@ -225,3 +237,38 @@ export const resultHash = (output: string): `0x${string}` => keccak256(toBytes(o
 /** Where a host serves the output of a task it ran. */
 export const resultUrl = (endpoint: string, swarm: string, jobId: bigint | number, task: number) =>
   `${endpoint.replace(/\/+$/, "")}/results/${swarm.toLowerCase()}/${jobId}/${task}`;
+
+// ---------------------------------------------------------------- peer-to-peer network
+
+/** libp2p protocols and topics Grid nodes speak. */
+export const P2P_HTTP_PROTOCOL = "/grid/http/1.0.0";
+export const P2P_DHT_PROTOCOL = "/grid/kad/1.0.0";
+export const P2P_HEARTBEAT_TOPIC = "grid/heartbeat/1";
+/** How often nodes announce themselves, and how long an announcement counts as "online". */
+export const HEARTBEAT_SECONDS = 15;
+export const HEARTBEAT_TTL_SECONDS = 60;
+
+/**
+ * What a node gossips every HEARTBEAT_SECONDS, signed by its host wallet so the libp2p peer is
+ * bound to an on-chain identity. `sig` must stay the last field: it signs everything before it.
+ */
+export type PeerHeartbeat = {
+  v: 1;
+  peer: string;
+  host: `0x${string}`;
+  name: string;
+  /** Where renters reach this node: its own URL, a relay's /p2p/<peer> gateway, or null. */
+  endpoint: string | null;
+  /** Set when this node relays for others: its public URL. */
+  relay: string | null;
+  /** True when the node can take direct SSH rentals (it has a public address). */
+  direct: boolean;
+  busy: boolean;
+  ts: number;
+  sig: `0x${string}`;
+};
+
+export const heartbeatMessage = (h: Omit<PeerHeartbeat, "sig">) => `grid-heartbeat\n${JSON.stringify(h)}`;
+
+/** Reply of GET <endpoint>/peers on a relay: the peers it has heard from recently. */
+export type PeersInfo = { peers: (Omit<PeerHeartbeat, "sig"> & { seen: number })[]; self: string };

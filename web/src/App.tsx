@@ -3,7 +3,7 @@ import { Caseback } from "./components/Caseback";
 import { GitHubIcon, XIcon } from "./components/Icons";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Wallet } from "./components/Wallet";
-import { SOURCE_URL, X_URL } from "./lib/links";
+import { DOCS_URL, SOURCE_URL, X_URL } from "./lib/links";
 import { About } from "./pages/About";
 import { Host } from "./pages/Host";
 import { JobPage } from "./pages/Job";
@@ -66,6 +66,9 @@ export default function App() {
               {p.label}
             </Link>
           ))}
+          <a href={DOCS_URL} className="text-muted transition-colors hover:text-ink">
+            Docs
+          </a>
         </nav>
         <div className="ml-auto flex items-center gap-5">
           <a href={X_URL} aria-label="Grid on X" className="text-muted transition-colors hover:text-steel">
