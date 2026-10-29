@@ -1,0 +1,26 @@
+{
+  "name": "grid",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Grid — decentralized compute network. Rent GPUs peer to peer, pay in ETH on Robinhood Chain, hosts bonded with GRID.",
+  "workspaces": [
+    "contracts",
+    "packages/*",
+    "node",
+    "web"
+  ],
+  "scripts": {
+    "chain": "anvil",
+    "contracts:build": "npm run build -w contracts",
+    "contracts:test": "npm run test -w contracts",
+    "deploy:local": "npm run deploy:local -w contracts",
+    "deploy:testnet": "npm run deploy:testnet -w contracts",
+    "node": "npm run start -w grid-node",
+    "web": "npm run dev -w web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.22.0"
+  }
+}

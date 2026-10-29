@@ -1,0 +1,20 @@
+{
+  "name": "grid-node",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Grid host node: lists this machine on-chain, serves SSH access to whoever rents it, settles rentals.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@grid/shared": "*",
+    "tsx": "^4.20.0",
+    "viem": "^2.37.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
