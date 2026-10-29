@@ -21,9 +21,10 @@ export function Legal() {
   return (
     <article className="max-w-[64ch] text-[15px] leading-[1.7] [&_p]:mt-4">
       <h1 className="font-serif text-[34px] font-light leading-[1.1] tracking-[-0.01em]">Legal</h1>
-      <p className="!mt-2 text-muted">Terms of use, risks and privacy. Last updated {UPDATED}.</p>
+      <p className="!mt-2 text-muted">Disclaimer, terms of use, risks and privacy. Last updated {UPDATED}.</p>
       <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
         {[
+          ["disclaimer", "Disclaimer"],
           ["terms", "Terms"],
           ["risks", "Risks"],
           ["grid", "GRID"],
@@ -36,6 +37,13 @@ export function Legal() {
           </a>
         ))}
       </nav>
+
+      <Part id="disclaimer" title="Disclaimer">
+        <p>
+          Grid is experimental software provided as is, without warranty. Its contracts have not been audited. Nothing on
+          this site is financial, investment, legal or tax advice.
+        </p>
+      </Part>
 
       <Part id="terms" title="Terms of use">
         <p>
@@ -147,6 +155,10 @@ export function Legal() {
           . Source code on{" "}
           <a className={linkClass} href={SOURCE_URL}>
             GitHub
+          </a>
+          , under the{" "}
+          <a className={linkClass} href={`${SOURCE_URL}/blob/main/LICENSE`}>
+            MIT license
           </a>
           ; updates on{" "}
           <a className={linkClass} href={X_URL}>

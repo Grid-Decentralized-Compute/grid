@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 type Variant = "primary" | "secondary" | "quiet" | "danger";
 
 const variants: Record<Variant, string> = {
-  primary: "h-8 px-3.5 bg-steel text-white hover:bg-[#17305f]",
+  primary: "h-8 px-3.5 bg-steel text-on-steel hover:bg-steel-deep",
   secondary: "h-8 px-3.5 border border-line bg-transparent text-ink hover:border-steel hover:text-steel",
   quiet: "h-auto px-0 text-muted hover:text-steel",
   danger: "h-8 px-3.5 border border-line bg-transparent text-bad hover:border-bad/50",
@@ -31,7 +31,7 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
   );
 }
 
-const tones = { ok: "bg-ok", busy: "bg-busy", off: "bg-[#c4c5c0]", bad: "bg-bad" };
+const tones = { ok: "bg-ok", busy: "bg-busy", off: "bg-mark-off", bad: "bg-bad" };
 export type Tone = keyof typeof tones;
 
 /** A status reading: a small applied index and its label. */

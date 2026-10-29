@@ -1,6 +1,7 @@
 {
   "name": "@grid/shared",
   "private": true,
+  "license": "MIT",
   "version": "0.0.1",
   "type": "module",
   "description": "Chain definitions, contract ABIs, deployment addresses and the host/renter wire types shared by the web app and the host node.",

@@ -34,7 +34,7 @@ export function Caseback() {
         <span className="tnum flex items-center gap-2">
           <span
             aria-hidden="true"
-            className={`h-[7px] w-[2px] transition-colors duration-300 ${tick ? "bg-steel" : "bg-[#c4c5c0]"}`}
+            className={`h-[7px] w-[2px] transition-colors duration-300 ${tick ? "bg-steel" : "bg-mark-off"}`}
           />
           Block {block !== undefined ? block.toLocaleString("en-US") : "—"}
         </span>
@@ -49,14 +49,7 @@ export function Caseback() {
           ) : (
             <span className="font-mono normal-case tracking-normal">GridMarket {shortAddr(deployment.GridMarket)}</span>
           ))}
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-x-10 gap-y-4 text-[12px] leading-relaxed text-faint">
-        <p className="max-w-[68ch]">
-          Grid is experimental software provided as is, without warranty. Its contracts have not been audited. Nothing on
-          this site is financial, investment, legal or tax advice.
-        </p>
-        <nav aria-label="Links" className="flex gap-5">
+        <nav aria-label="Links" className="flex gap-6 sm:ml-auto">
           <a href={X_URL} className={linkClass}>
             X
           </a>
@@ -64,7 +57,7 @@ export function Caseback() {
             GitHub
           </a>
           <Link href="/legal" className={linkClass}>
-            Terms
+            Legal
           </Link>
           <Link href="/legal#privacy" className={linkClass}>
             Privacy

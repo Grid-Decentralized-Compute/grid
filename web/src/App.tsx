@@ -1,6 +1,7 @@
 import { Component, type ReactNode, useEffect } from "react";
 import { Caseback } from "./components/Caseback";
 import { GitHubIcon, XIcon } from "./components/Icons";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { Wallet } from "./components/Wallet";
 import { SOURCE_URL, X_URL } from "./lib/links";
 import { About } from "./pages/About";
@@ -65,6 +66,7 @@ export default function App() {
           <a href={SOURCE_URL} aria-label="Source on GitHub" className="text-muted transition-colors hover:text-steel">
             <GitHubIcon className="size-[16px]" />
           </a>
+          <ThemeToggle />
           <span className="h-4 w-px bg-line" aria-hidden="true" />
           <Wallet />
         </div>
@@ -95,7 +97,7 @@ function Mark() {
     <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
       {[0, 6, 12].flatMap((y) =>
         [0, 6, 12].map((x) => (
-          <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" rx="1" fill={x === 6 && y === 6 ? "#1f3c78" : "currentColor"} />
+          <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" rx="1" fill={x === 6 && y === 6 ? "var(--color-steel)" : "currentColor"} />
         )),
       )}
     </svg>

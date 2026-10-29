@@ -1,6 +1,7 @@
 {
   "name": "grid",
   "private": true,
+  "license": "MIT",
   "version": "0.0.1",
   "type": "module",
   "description": "Grid — decentralized compute network. Rent GPUs peer to peer, pay in ETH on Robinhood Chain, hosts bonded with GRID.",

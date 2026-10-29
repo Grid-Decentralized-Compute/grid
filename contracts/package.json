@@ -1,6 +1,7 @@
 {
   "name": "contracts",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "forge build && node export.mjs",

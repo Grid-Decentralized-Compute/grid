@@ -1,6 +1,7 @@
 {
   "name": "web",
   "private": true,
+  "license": "MIT",
   "version": "0.0.1",
   "type": "module",
   "description": "Grid marketplace: browse machines, rent with ETH, bond GRID as a host. A static site that talks to the chain and to host nodes directly.",

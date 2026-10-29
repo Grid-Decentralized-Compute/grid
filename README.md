@@ -100,3 +100,7 @@ real token exists and the registry is audited.
   gets, `node/src/server.ts` is what renters can ask the node.
 - New page or wallet action: `web/src/pages`, with `useTx` for transactions and `useReadContract` for reads.
 - New chain: `packages/shared/src/index.ts`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -74,7 +74,7 @@ export function BlockTrack() {
             <span
               key={b.n.toString()}
               title={`Block ${b.n.toLocaleString("en-US")} · ${b.txs} transaction${b.txs === 1 ? "" : "s"}`}
-              className={`tick w-px transition-[height,background-color] duration-700 ${isLatest ? "bg-steel" : "bg-[#a9aba4]"}`}
+              className={`tick w-px transition-[height,background-color] duration-700 ${isLatest ? "bg-steel" : "bg-tick"}`}
               style={{ height: b.txs === 0 && (empty + i) % 5 === 0 ? 6 : h }}
             />
           );

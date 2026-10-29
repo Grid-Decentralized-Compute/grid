@@ -17,10 +17,35 @@
   --color-ok: #1f3c78;
   --color-busy: #9a7330;
   --color-bad: #a3262a;
+  --color-steel-deep: #17305f; /* pressed steel */
+  --color-on-steel: #ffffff; /* text on a steel button */
+  --color-tick: #a9aba4; /* block track */
+  --color-mark-off: #c4c5c0; /* an index that is not lit */
 }
 
 :root {
   color-scheme: light;
+}
+
+/* Night: an anthracite dial, silver print, steel lightened so it still reads as blue. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-dial: #121316;
+  --color-plate: #1b1d21;
+  --color-ink: #e7e7e2;
+  --color-muted: #a0a3ab;
+  --color-faint: #6c6f77;
+  --color-line: #2a2c31;
+  --color-wash: #1d1f23;
+  --color-steel: #8fa8e6;
+  --color-steel-deep: #a9bdf0;
+  --color-on-steel: #0f1115;
+  --color-gold: #c9a35e;
+  --color-ok: #8fa8e6;
+  --color-busy: #c9a35e;
+  --color-bad: #e2686c;
+  --color-tick: #5d6068;
+  --color-mark-off: #3b3d43;
 }
 
 html {
@@ -35,7 +60,16 @@ body {
 
 ::selection {
   background: var(--color-steel);
-  color: #fff;
+  color: var(--color-on-steel);
+}
+
+/* Switching themes cross-fades the dial instead of snapping. */
+html.theme-fade,
+html.theme-fade * {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease !important;
 }
 
 :focus-visible {
