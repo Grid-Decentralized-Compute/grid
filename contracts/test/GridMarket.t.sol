@@ -206,6 +206,42 @@ contract GridMarketTest is Test {
         assertEq(market.balances(renter), uint256(PRICE) * 3);
     }
 
+    function test_hostEndingRightAwayBillsNothing() public {
+        uint64 id = _list();
+        uint64 rid = _rent(id, 2);
+        vm.prank(host);
+        market.endRental(rid); // same second: no minute served
+        assertEq(market.balances(host), 0);
+        assertEq(market.balances(renter), uint256(PRICE) * 2);
+
+        rid = _rent(id, 2);
+        vm.warp(block.timestamp + 59);
+        vm.prank(host);
+        market.endRental(rid);
+        assertEq(market.balances(host), 0); // still not a full minute
+    }
+
+    function test_hostEndingEarlyBillsOnlyFullMinutes() public {
+        uint64 id = _list();
+        uint64 rid = _rent(id, 2);
+        vm.warp(block.timestamp + 30 minutes + 59); // 30 full minutes, 31 started
+        vm.prank(host);
+        market.endRental(rid);
+        uint256 cost = uint256(PRICE) * 30 / 60;
+        assertEq(market.balances(host), cost);
+        assertEq(market.balances(renter), uint256(PRICE) * 2 - cost);
+    }
+
+    function test_hostEndingAfterExpiryIsPaidInFull() public {
+        uint64 id = _list();
+        uint64 rid = _rent(id, 2);
+        vm.warp(block.timestamp + 2 hours);
+        vm.prank(host);
+        market.endRental(rid);
+        assertEq(market.balances(host), uint256(PRICE) * 2);
+        assertEq(market.balances(renter), 0);
+    }
+
     function test_endTwiceReverts() public {
         uint64 id = _list();
         uint64 rid = _rent(id, 1);

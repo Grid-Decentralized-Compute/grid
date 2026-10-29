@@ -1207,6 +1207,45 @@ export const swarmMarketAbi = [
   },
   {
     "type": "function",
+    "name": "commitHash",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "task",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "host",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "result",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "faults",
     "inputs": [
       {
@@ -1445,6 +1484,11 @@ export const swarmMarketAbi = [
             "internalType": "uint64"
           },
           {
+            "name": "commit",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
             "name": "result",
             "type": "bytes32",
             "internalType": "bytes32"
@@ -1521,6 +1565,34 @@ export const swarmMarketAbi = [
   },
   {
     "type": "function",
+    "name": "reveal",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "tasks",
+        "type": "uint32[]",
+        "internalType": "uint32[]"
+      },
+      {
+        "name": "results",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      },
+      {
+        "name": "salts",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "stake",
     "inputs": [],
     "outputs": [
@@ -1547,7 +1619,7 @@ export const swarmMarketAbi = [
         "internalType": "uint32[]"
       },
       {
-        "name": "results",
+        "name": "commits",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       }
@@ -1643,6 +1715,37 @@ export const swarmMarketAbi = [
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Committed",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "task",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "host",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1990,6 +2093,32 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "function",
+    "name": "CHANGE_DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_SLASH_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "UNBOND_DELAY",
     "inputs": [],
     "outputs": [
@@ -2000,6 +2129,27 @@ export const stakeRegistryAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "applyMinBond",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "applySlasher",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -2124,20 +2274,72 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "function",
-    "name": "setMarket",
-    "inputs": [
+    "name": "pendingMinBond",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "market_",
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingMinBondAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "setMinBond",
+    "name": "pendingSlasher",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingSlasherAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposeMinBond",
     "inputs": [
       {
         "name": "minBond_",
@@ -2150,10 +2352,10 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "function",
-    "name": "setOwner",
+    "name": "proposeSlasher",
     "inputs": [
       {
-        "name": "owner_",
+        "name": "slasher_",
         "type": "address",
         "internalType": "address"
       }
@@ -2163,10 +2365,10 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "function",
-    "name": "setSlasher",
+    "name": "setMarket",
     "inputs": [
       {
-        "name": "slasher_",
+        "name": "market_",
         "type": "address",
         "internalType": "address"
       }
@@ -2218,6 +2420,19 @@ export const stakeRegistryAbi = [
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -2300,6 +2515,25 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "event",
+    "name": "MinBondProposed",
+    "inputs": [
+      {
+        "name": "minBond",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "readyAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "MinBondSet",
     "inputs": [
       {
@@ -2313,12 +2547,37 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "event",
-    "name": "OwnerSet",
+    "name": "OwnershipTransferStarted",
     "inputs": [
       {
-        "name": "owner",
+        "name": "previousOwner",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
         "internalType": "address"
       }
     ],
@@ -2345,6 +2604,25 @@ export const stakeRegistryAbi = [
         "type": "string",
         "indexed": false,
         "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SlasherProposed",
+    "inputs": [
+      {
+        "name": "slasher",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "readyAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
       }
     ],
     "anonymous": false
@@ -2408,6 +2686,11 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "error",
+    "name": "AmountMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "BpsTooHigh",
     "inputs": []
   },
@@ -2418,7 +2701,17 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "error",
+    "name": "MarketAlreadySet",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotPendingOwner",
     "inputs": []
   },
   {
@@ -2433,12 +2726,27 @@ export const stakeRegistryAbi = [
   },
   {
     "type": "error",
+    "name": "NothingProposed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "RentalsActive",
     "inputs": []
   },
   {
     "type": "error",
+    "name": "TooEarly",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "TransferFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
     "inputs": []
   },
   {

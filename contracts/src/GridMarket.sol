@@ -6,7 +6,7 @@ import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 /// @title GridMarket — list a machine, rent it with ETH held in escrow, settle by the minute.
 /// @notice Nobody operates this contract: hosts list, renters pay the full rental
 ///         up front, and either side (or anyone, once the paid time is over) can
-///         end the rental. The host is paid for every started minute and the
+///         end the rental. The host is paid by the minute (see endRental) and the
 ///         renter gets the rest back. All payouts are pulled with withdraw().
 contract GridMarket {
     struct Machine {
@@ -147,7 +147,9 @@ contract GridMarket {
     }
 
     /// @notice End a rental. The renter and the host may end it any time; anyone may
-    ///         end it once the paid hours are over. The host is paid per started minute.
+    ///         end it once the paid hours are over. The host is paid per started minute
+    ///         (at least one), except when the host cuts the paid time short: then only
+    ///         for the minutes fully served, so ending a rental early earns the host nothing extra.
     function endRental(uint64 rentalId) external {
         Rental storage r = _rentals[rentalId];
         if (r.ended) revert AlreadyEnded();
@@ -159,8 +161,13 @@ contract GridMarket {
         if (msg.sender != r.renter && msg.sender != m.host && !expired) revert NotAllowed();
 
         if (elapsed > maxSeconds) elapsed = maxSeconds;
-        uint256 minutesUsed = (elapsed + 59) / 60;
-        if (minutesUsed == 0) minutesUsed = 1;
+        uint256 minutesUsed;
+        if (msg.sender == m.host && !expired) {
+            minutesUsed = elapsed / 60;
+        } else {
+            minutesUsed = (elapsed + 59) / 60;
+            if (minutesUsed == 0) minutesUsed = 1;
+        }
         uint256 cost = uint256(r.pricePerHour) * minutesUsed / 60;
         if (cost > r.deposit) cost = r.deposit;
         uint256 refund = r.deposit - cost;

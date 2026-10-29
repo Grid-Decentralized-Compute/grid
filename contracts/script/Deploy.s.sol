@@ -17,9 +17,13 @@ import {IStakeRegistry} from "../src/interfaces/IStakeRegistry.sol";
 ///           faucet, then npm run deploy:testnet
 /// Mainnet:  also set GRID_TOKEN to the GRID address Creora launched, then npm run deploy:mainnet
 ///
-/// Env (all optional): GRID_TOKEN (skip MockGRID), MIN_BOND in GRID wei. MIN_BOND defaults to
-/// 100 GRID on a local anvil chain so the bond flow can be tried, and to 0 (bonding off) elsewhere:
-/// bonded listings only open once the real GRID exists and the StakeRegistry is audited.
+/// Env (all optional):
+///   GRID_TOKEN      the GRID token; MockGRID is deployed when unset.
+///   MIN_BOND        GRID wei a host must bond, default 100 GRID. The bond is the Sybil gate, so
+///                   off anvil the script refuses MIN_BOND=0 unless ALLOW_UNBONDED=1 is set too.
+///   OWNER           starts the two-step hand-over of the StakeRegistry to this address (a
+///                   multisig), which then calls acceptOwnership(). The deployer stays owner
+///                   until it does.
 contract Deploy is Script {
     /// @dev anvil's account #0; public and funded only on a local chain.
     uint256 constant ANVIL_DEPLOYER_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
@@ -27,7 +31,11 @@ contract Deploy is Script {
     function run() external {
         bool local = block.chainid == 31337;
         address gridToken = vm.envOr("GRID_TOKEN", address(0));
-        uint256 minBond = vm.envOr("MIN_BOND", local ? 100 ether : 0);
+        uint256 minBond = vm.envOr("MIN_BOND", uint256(100 ether));
+        if (!local && minBond == 0 && vm.envOr("ALLOW_UNBONDED", uint256(0)) != 1) {
+            revert("MIN_BOND=0 switches the bond off; set ALLOW_UNBONDED=1 to deploy that way");
+        }
+        address owner = vm.envOr("OWNER", address(0));
         uint256 deployerKey = local ? ANVIL_DEPLOYER_KEY : vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerKey);
@@ -39,11 +47,14 @@ contract Deploy is Script {
         GridMarket market = new GridMarket(IStakeRegistry(address(stake)));
         SwarmMarket swarm = new SwarmMarket(IStakeRegistry(address(stake)));
         stake.setMarket(address(market));
+        if (owner != address(0)) stake.transferOwnership(owner);
         vm.stopBroadcast();
 
         console.log("StakeRegistry:", address(stake));
         console.log("GridMarket:", address(market));
         console.log("SwarmMarket:", address(swarm));
+        console.log("minBond (GRID wei):", minBond);
+        if (owner != address(0)) console.log("StakeRegistry owner pending, must acceptOwnership():", owner);
 
         // Only record addresses that were actually sent to the chain; a dry run keeps the old file.
         if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {

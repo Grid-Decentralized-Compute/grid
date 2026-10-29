@@ -128,8 +128,9 @@ npm run deploy:testnet        # writes contracts/deployments/46630.json and refr
 
 Testnet is chain id 46630. For mainnet (4663) also set `GRID_TOKEN` to the GRID address launched
 through Creora and run `npm run deploy:mainnet`; `MockGRID` is only deployed when `GRID_TOKEN` is
-unset. `MIN_BOND` (GRID wei) sets the bond requirement; it defaults to 0 off a local chain until the
-real token exists and the registry is audited.
+unset. `MIN_BOND` (GRID wei) sets the bond requirement and defaults to 100 GRID. Off a local chain the
+script refuses to deploy without a bond unless `ALLOW_UNBONDED=1`: without one, fake identities cost
+nothing. Set `OWNER` to start handing StakeRegistry to a multisig (it must call `acceptOwnership`).
 
 ## Adding features
 
