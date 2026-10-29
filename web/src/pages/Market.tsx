@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ContractFunctionReturnType } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { gridMarketAbi, parseMetadata, stakeRegistryAbi, TRIAL_MAX_DEPOSIT_WEI } from "@grid/shared";
+import { BlockTrack } from "../components/BlockTrack";
 import { Button, ErrorText, Input, linkClass, Status, type Tone } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtEth, fmtGb, shortAddr, shortCpu } from "../lib/format";
@@ -57,14 +58,17 @@ export function Market() {
   return (
     <>
       <section>
-        <h1 className="font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
+        <h1 className="rise font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
           Rent GPUs from their owners.
         </h1>
-        <p className="mt-6 max-w-[60ch] text-[16px] text-muted">
+        <p className="rise mt-6 max-w-[60ch] text-[16px] text-muted [animation-delay:90ms]">
           Each machine below is listed by the person who runs it. When you rent one, the ETH for the hours you choose is
           held by the GridMarket contract; the host is paid for the minutes you use and the rest is returned to you when
           the rental ends.
         </p>
+        <div className="rise mt-10 [animation-delay:180ms]">
+          <BlockTrack />
+        </div>
       </section>
 
       <section className="mt-16 sm:mt-24">

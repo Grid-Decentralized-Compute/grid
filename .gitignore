@@ -15,9 +15,6 @@ contracts/deployments/31337.json
 # host node state (machine id, sessions)
 node/.grid/
 
-# local assistant notes and session files, never published
-.claude/
-CLAUDE.md
 
 # wrangler scratch files
 .wrangler/
