@@ -1,18 +1,18 @@
 import { Fragment, useState } from "react";
-import type { ContractFunctionReturnType } from "viem";
+import { useQueries } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { gridMarketAbi, parseMetadata, stakeRegistryAbi, TRIAL_MAX_DEPOSIT_WEI } from "@grid/shared";
 import { BlockTrack } from "../components/BlockTrack";
+import { GpuIndex } from "../components/GpuIndex";
 import { NetworkPlate } from "../components/NetworkPlate";
-import { Button, ErrorText, Input, linkClass, Status, type Tone } from "../components/ui";
+import { Button, ErrorText, Input, linkClass, Status } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtEth, fmtGb, shortAddr, shortCpu } from "../lib/format";
-import { endpointBlocked, useHealth } from "../lib/hooks";
+import { healthQuery } from "../lib/hooks";
+import { applyFilters, filtersActive, gpuGroups, type MachineView, machineStatus, useFilters } from "../lib/machines";
 import { useTx } from "../lib/useTx";
 import { Link, navigate } from "../router";
 import { Swarm } from "./Swarm";
-
-type Listing = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getListings">[number];
 
 /** Listings are read in fixed pages so one oversized call can never blank the market. */
 const PAGE = 50n;
@@ -130,21 +130,32 @@ function Machines() {
     query: { enabled: !!deployment && offsets.length > 0, refetchInterval: 5_000 },
   });
 
-  const items = (pages ?? [])
-    .flatMap((p) => (p.status === "success" ? [...p.result] : []))
-    // Rentable machines first, cheapest first within each group.
-    .sort((a, b) =>
-      a.rentable !== b.rentable ? (a.rentable ? -1 : 1) : a.machine.pricePerHour < b.machine.pricePerHour ? -1 : 1,
-    );
+  const items = (pages ?? []).flatMap((p) => (p.status === "success" ? [...p.result] : []));
+  const metas = items.map((item) => parseMetadata(item.machine.metadata));
+  // Every node's /health, once each; the rows below read the same cached results.
+  const health = useQueries({ queries: metas.map((meta) => healthQuery(meta?.endpoint)) });
+  const views: MachineView[] = items.map((item, i) => ({ item, meta: metas[i], ...machineStatus(item, metas[i], health[i]) }));
+  const [filters, setFilters, clearFilters] = useFilters();
+  const groups = gpuGroups(views);
+  const shown = applyFilters(views, filters);
+  const filtering = filtersActive(filters);
+
   const loading = !!deployment && (count === undefined || (offsets.length > 0 && !pages)) && !countError;
   const error = countError ?? pageError;
 
   return (
     <>
+      {views.length > 0 && <GpuIndex groups={groups} filters={filters} onChange={setFilters} onClear={clearFilters} />}
       <section className="mt-12">
         <div className="flex items-end justify-between gap-4 border-b border-rule pb-2">
           <h2 className="engraved text-ink">
-            Machines{!loading && <span className="tnum ml-2 text-faint">{String(items.length).padStart(2, "0")}</span>}
+            Machines
+            {!loading && (
+              <span className="tnum ml-2 text-faint">
+                {String(shown.length).padStart(2, "0")}
+                {filtering && ` / ${String(views.length).padStart(2, "0")}`}
+              </span>
+            )}
           </h2>
           <Link href="/host" className="text-[13px] text-muted transition-colors hover:text-steel">
             List a machine
@@ -170,51 +181,38 @@ function Machines() {
               List yours
             </Link>
           </p>
+        ) : shown.length === 0 ? (
+          <p className="border-b border-line py-8 text-muted">
+            No machine matches these filters.{" "}
+            <button type="button" onClick={clearFilters} className={linkClass}>
+              Clear filters
+            </button>
+          </p>
         ) : (
-          items.map((item) => <MachineRow key={item.id.toString()} item={item} bondingOff={minBond === 0n} />)
+          shown.map((view) => <MachineRow key={view.item.id.toString()} view={view} bondingOff={minBond === 0n} />)
         )}
       </section>
     </>
   );
 }
 
-function MachineRow({ item, bondingOff }: { item: Listing; bondingOff: boolean }) {
-  const { id, machine, rentable, hostBonded } = item;
-  const meta = parseMetadata(machine.metadata);
-  const blocked = endpointBlocked(meta?.endpoint);
-  const health = useHealth(meta?.endpoint);
+function MachineRow({ view, bondingOff }: { view: MachineView; bondingOff: boolean }) {
+  const { item, meta, tone, label } = view;
+  const { id, machine, hostBonded } = item;
   const { address } = useAccount();
   const deployment = useDeployment()!;
   const tx = useTx();
   const [open, setOpen] = useState(false);
   const [hours, setHours] = useState(1);
 
-  const busy = machine.activeRental !== 0n;
   const isMine = !!address && address.toLowerCase() === machine.host.toLowerCase();
   // An unbonded host may hold at most TRIAL_MAX_DEPOSIT per rental (GridMarket.TRIAL_MAX_DEPOSIT).
   const capped = !bondingOff && !hostBonded;
   const maxHours = Math.min(MAX_HOURS, capped ? Number(TRIAL_MAX_DEPOSIT_WEI / machine.pricePerHour) : MAX_HOURS);
-  const online = health.isSuccess;
-  const canRent = rentable && !isMine && !blocked && online && maxHours >= 1;
+  // "Free" already means listed, not rented, reachable and allowed to rent (lib/machines.ts).
+  const canRent = view.free && !isMine && maxHours >= 1;
   const total = machine.pricePerHour * BigInt(Math.max(1, hours));
-
-  // A host behind NAT has no reachable SSH port: it takes swarm work only.
   const swarmOnly = meta?.p2p?.direct === false;
-  const [tone, label]: [Tone, string] = swarmOnly
-    ? ["off", "Swarm only"]
-    : !machine.available
-    ? ["off", "Paused"]
-    : busy
-      ? ["busy", "Rented"]
-      : blocked
-        ? ["off", "Unreachable"]
-        : health.isPending
-          ? ["off", "Checking"]
-          : !online
-            ? ["off", "Offline"]
-            : !rentable
-              ? ["off", "Needs bond"]
-              : ["ok", "Available"];
 
   async function rent() {
     const ok = await tx.run("Renting…", [

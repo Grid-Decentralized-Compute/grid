@@ -184,6 +184,17 @@ html.theme-fade * {
   animation-iteration-count: 1;
 }
 
+/* A GPU tile's gauge segments draw in from the left. */
+.seg {
+  transform-origin: left;
+  animation: seg-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes seg-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
 /* The plate boots: machines come online in a ripple from the first relay (--b is the delay). */
 .boot {
   transform-box: fill-box;
@@ -276,7 +287,8 @@ html.theme-fade * {
   transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .nav-link:hover::after,
-.nav-link[aria-current="page"]::after {
+.nav-link[aria-current="page"]::after,
+.nav-link[aria-pressed="true"]::after {
   transform: scaleX(1);
   transform-origin: left;
 }
@@ -291,7 +303,8 @@ html.theme-fade * {
   .boot-link,
   .boot-fade,
   .ambient-in,
-  .reveal {
+  .reveal,
+  .seg {
     animation: none;
   }
   .job:not(.still):not(.once) {

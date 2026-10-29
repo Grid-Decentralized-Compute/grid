@@ -30,19 +30,24 @@ function isLocalDev(): boolean {
   return h === "localhost" || h === "127.0.0.1" || h.endsWith(".localhost");
 }
 
-/** Pings a host node's /health. Success means the node is reachable from this browser. */
+/**
+ * Pings a host node's /health. Success means the node is reachable from this browser. Shared by
+ * each market row and the GPU index, which react-query runs as one request per node.
+ */
+export const healthQuery = (endpoint: string | undefined) => ({
+  queryKey: ["health", endpoint],
+  enabled: !!endpoint && !endpointBlocked(endpoint),
+  refetchInterval: 15_000,
+  retry: false,
+  queryFn: async (): Promise<HealthInfo> => {
+    const res = await fetch(`${endpoint}/health`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error(`health check failed: ${res.status}`);
+    return res.json();
+  },
+});
+
 export function useHealth(endpoint: string | undefined) {
-  return useQuery({
-    queryKey: ["health", endpoint],
-    enabled: !!endpoint && !endpointBlocked(endpoint),
-    refetchInterval: 15_000,
-    retry: false,
-    queryFn: async (): Promise<HealthInfo> => {
-      const res = await fetch(`${endpoint}/health`, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) throw new Error(`health check failed: ${res.status}`);
-      return res.json();
-    },
-  });
+  return useQuery(healthQuery(endpoint));
 }
 
 /**
