@@ -3,217 +3,502 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Grid — rent GPUs straight from the people who own them</title>
+    <title>Grid · Rent GPUs from their owners</title>
     <meta
       name="description"
-      content="Grid is a compute market with no company in the middle. Hosts list their machines on Robinhood Chain, renters pay ETH into a contract and get SSH access from the host directly, billed by the minute."
+      content="Grid is a compute market on Robinhood Chain with no company in the middle. Hosts list their own machines, renters pay ETH into a contract, get SSH access straight from the host and pay for every started minute."
     />
-    <meta property="og:title" content="Grid — decentralized compute" />
-    <meta property="og:description" content="Rent GPUs straight from the people who own them. Paid in ETH on Robinhood Chain, billed by the minute, no company in between." />
+    <meta name="theme-color" content="#09090b" />
     <meta property="og:type" content="website" />
+    <meta property="og:title" content="Grid · Rent GPUs from their owners" />
+    <meta
+      property="og:description"
+      content="A compute market with no company in the middle. Pay ETH into a contract, get SSH access straight from the host, and get back every minute you don't use."
+    />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@87.5,400..500&family=Mona+Sans:wdth,wght@100..125,400..700&display=swap"
     />
     <link rel="stylesheet" href="style.css" />
   </head>
-  <body>
+  <body id="top">
     <a class="skip" href="#main">Skip to content</a>
 
-    <header class="top">
-      <a class="brand" href="#" aria-label="Grid home">
-        <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
-          <rect x="1" y="1" width="5" height="5" rx="1" />
-          <rect x="7.5" y="1" width="5" height="5" rx="1" />
-          <rect x="14" y="1" width="5" height="5" rx="1" />
-          <rect x="1" y="7.5" width="5" height="5" rx="1" />
-          <rect class="lit" x="7.5" y="7.5" width="5" height="5" rx="1" />
-          <rect x="14" y="7.5" width="5" height="5" rx="1" />
-          <rect x="1" y="14" width="5" height="5" rx="1" />
-          <rect x="7.5" y="14" width="5" height="5" rx="1" />
-          <rect class="lit" x="14" y="14" width="5" height="5" rx="1" />
-        </svg>
-        Grid
-      </a>
-      <nav class="nav" aria-label="Sections">
-        <a href="#how">How it works</a>
-        <a href="#hosts">Hosts</a>
-        <a href="#coin">GRID</a>
-        <a href="#status">Status</a>
-      </nav>
-      <a class="button button-primary top-cta" href="https://grid-5y8.pages.dev/">Open the market</a>
+    <header class="bar">
+      <div class="wrap bar-inner">
+        <a class="brand" href="#top" aria-label="Grid, back to top">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 5.5H5.5v13H18V12h-6" />
+            <circle cx="12" cy="12" r="2.6" />
+          </svg>
+          <span>Grid</span>
+        </a>
+        <nav class="bar-nav" aria-label="Sections">
+          <a href="#how">How it works</a>
+          <a href="#compare">Compare</a>
+          <a href="#hosts">Hosts</a>
+          <a href="#coin">GRID</a>
+          <a href="#status">Status</a>
+        </nav>
+        <div class="bar-end">
+          <a class="bar-link" href="https://github.com/Grid-Decentralized-Compute/grid">Source</a>
+          <a class="btn btn-primary btn-small" href="https://grid-5y8.pages.dev/">Open the market</a>
+        </div>
+      </div>
     </header>
 
     <main id="main">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Decentralized compute · Robinhood Chain</p>
-          <h1>Rent GPUs straight from the people who own them.</h1>
-          <p class="lede">
-            Grid is a compute market with no company in the middle. Hosts list their machines on-chain, you pay ETH into a
-            contract, and the host hands you SSH access directly. Billed by the minute; whatever you don't use comes back.
-          </p>
-          <div class="actions">
-            <a class="button button-primary" href="https://grid-5y8.pages.dev/">Open the market</a>
-            <a class="button button-secondary" href="#hosts">Run a host</a>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap">
+          <h1 class="hero-title" id="hero-title">
+            Rent GPUs from their owners.
+            <span>No company in the middle.</span>
+          </h1>
+
+          <div class="hero-sub">
+            <p class="lede">
+              Grid is a compute market on Robinhood Chain. Hosts list their own machines. You pay ETH into a contract
+              and get SSH access straight from the host. You’re charged for every started minute, and the rest comes
+              back to you.
+            </p>
+            <div class="hero-act">
+              <div class="actions">
+                <a class="btn btn-primary" href="https://grid-5y8.pages.dev/">Open the market</a>
+                <a class="btn btn-ghost" href="#hosts">Run a host</a>
+              </div>
+              <p class="hero-note">
+                <span class="live-dot" aria-hidden="true"></span>
+                <span>Deploying to the Robinhood Chain testnet now.</span>
+                <a href="#status">Where it stands</a>
+              </p>
+            </div>
           </div>
-          <dl class="facts">
-            <div><dt>Payment</dt><dd>ETH, held in escrow</dd></div>
-            <div><dt>Billing</dt><dd>Per started minute</dd></div>
-            <div><dt>Platform cut</dt><dd>None in the contract</dd></div>
+
+          <figure class="rental" data-rental data-phase="static" aria-labelledby="rental-caption">
+            <div class="rental-map" aria-hidden="true">
+              <div class="node node-you">
+                <p class="node-kicker">Renter</p>
+                <p class="node-title">You</p>
+                <p class="node-text">Pay ETH for the hours you want.</p>
+                <dl class="node-data">
+                  <div><dt>Paid in</dt><dd data-from="rent">0.0018 ETH</dd></div>
+                  <div><dt>SSH login</dt><dd data-from="access">from the host</dd></div>
+                  <div class="is-money"><dt>Back to you</dt><dd data-from="end">0.00133 ETH</dd></div>
+                </dl>
+              </div>
+
+              <div class="wire wire-in">
+                <div class="lane lane-a to-end is-eth">
+                  <span class="lane-text"><code>rent()</code> <span>0.0018 ETH</span></span>
+                  <span class="lane-line"><i></i></span>
+                </div>
+                <div class="lane lane-b to-start is-eth">
+                  <span class="lane-line"><i></i></span>
+                  <span class="lane-text"><span>refund</span> <span>0.00133</span></span>
+                </div>
+              </div>
+
+              <div class="node node-contract">
+                <p class="node-kicker">GridMarket · Robinhood Chain</p>
+                <p class="node-title">The contract</p>
+                <p class="node-text">Holds the ETH until the rental ends.</p>
+                <div class="meter">
+                  <p class="meter-held"><span>Held</span><b data-from="rent">0.0018 ETH</b></p>
+                  <div class="meter-bar"><i></i></div>
+                  <div class="meter-scale"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span></div>
+                  <p class="meter-read">
+                    <span><b data-used>47</b> min used</span>
+                    <span><b data-left>133</b> min unused</span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="wire wire-out">
+                <div class="lane lane-a to-start">
+                  <span class="lane-text"><code>listMachine()</code></span>
+                  <span class="lane-line"><i></i></span>
+                </div>
+                <div class="lane lane-b to-end is-eth">
+                  <span class="lane-line"><i></i></span>
+                  <span class="lane-text"><span>paid</span> <span>0.00047</span></span>
+                </div>
+              </div>
+
+              <div class="node node-host">
+                <p class="node-kicker">Host</p>
+                <p class="node-title">Their machine</p>
+                <p class="node-text">Runs your container on their own GPU.</p>
+                <dl class="node-data">
+                  <div><dt>GPU</dt><dd>RTX 4090 · 24 GB</dd></div>
+                  <div><dt>Price</dt><dd>0.0006 ETH/h</dd></div>
+                  <div class="is-money"><dt>Earned</dt><dd data-from="end">0.00047 ETH</dd></div>
+                </dl>
+              </div>
+
+              <div class="bypass">
+                <span class="bypass-line"><i></i></span>
+                <span class="bypass-label">SSH login, straight from the host</span>
+              </div>
+            </div>
+
+            <figcaption class="rental-caption" id="rental-caption">
+              An example rental: 3 hours paid up front at 0.0006 ETH an hour, ended after 47 minutes. The contract
+              pays the host for those 47 minutes and refunds the rest. The login comes from the host’s own node, not
+              from a Grid server.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section" id="how" aria-labelledby="how-title">
+        <div class="wrap">
+          <header class="section-head">
+            <h2 id="how-title">Three contract calls carry the whole rental.</h2>
+            <p class="section-lede">Billing is per started minute. The money sits in the contract, never with Grid.</p>
+          </header>
+
+          <ol class="calls">
+            <li class="call">
+              <p class="call-who">Host</p>
+              <p class="call-fn"><code>listMachine<span>()</span></code></p>
+              <h3>List a machine</h3>
+              <p class="call-text">
+                The GPU, memory, price per hour and the https address of the host’s own node go into the contract.
+              </p>
+            </li>
+            <li class="call">
+              <p class="call-who">Renter</p>
+              <p class="call-fn"><code>rent<span>()</span></code></p>
+              <h3>Pay for the hours you want</h3>
+              <p class="call-text">
+                The ETH for those hours goes into the contract. The host’s node sees the rental on-chain, starts an
+                SSH container and hands you the login once your wallet signature proves the rental is yours.
+              </p>
+            </li>
+            <li class="call">
+              <p class="call-who">Either side</p>
+              <p class="call-fn"><code>endRental<span>()</span></code></p>
+              <h3>End it any time</h3>
+              <p class="call-text">
+                The contract pays the host for every started minute and refunds you the rest. Once the paid time is
+                over, anyone can end it. Both sides collect their ETH with <code>withdraw()</code>.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="compare" aria-labelledby="compare-title">
+        <div class="wrap">
+          <header class="section-head">
+            <h2 id="compare-title">What changes when nobody is in the middle</h2>
+            <p class="section-lede">The same GPU rental, with a contract where the company used to be.</p>
+          </header>
+
+          <table class="compare">
+            <caption class="visually-hidden">Grid compared with a typical GPU rental platform</caption>
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col" class="is-them">A rental platform</th>
+                <th scope="col" class="is-grid">Grid</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Your money</th>
+                <td class="is-them" data-label="A rental platform">Held by the company</td>
+                <td class="is-grid" data-label="Grid">Held by a contract until the rental ends</td>
+              </tr>
+              <tr>
+                <th scope="row">Billing</th>
+                <td class="is-them" data-label="A rental platform">Drawn from credit the company holds</td>
+                <td class="is-grid" data-label="Grid">Per started minute, with the unused rest refunded</td>
+              </tr>
+              <tr>
+                <th scope="row">Platform fee</th>
+                <td class="is-them" data-label="A rental platform">A cut of every rental</td>
+                <td class="is-grid" data-label="Grid">None in the contract</td>
+              </tr>
+              <tr>
+                <th scope="row">Access</th>
+                <td class="is-them" data-label="A rental platform">Issued through the platform</td>
+                <td class="is-grid" data-label="Grid">Straight from the host’s machine</td>
+              </tr>
+              <tr>
+                <th scope="row">Who can list</th>
+                <td class="is-them" data-label="A rental platform">Providers the company approves</td>
+                <td class="is-grid" data-label="Grid">Anyone, with a GRID bond after the first 30 days</td>
+              </tr>
+              <tr>
+                <th scope="row">Who can switch it off</th>
+                <td class="is-them" data-label="A rental platform">The company</td>
+                <td class="is-grid" data-label="Grid">Nobody. The market contract has no owner.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="hosts" aria-labelledby="hosts-title">
+        <div class="wrap">
+          <div class="hosts">
+            <header class="section-head">
+              <h2 id="hosts-title">Run a host</h2>
+              <p class="section-lede">
+                List a machine you own, set your price, and get paid in ETH for every started minute it’s rented.
+              </p>
+              <a class="text-link" href="https://github.com/Grid-Decentralized-Compute/grid#run-a-real-host">
+                Read the host guide
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9.5M8.5 4l4 4-4 4" /></svg>
+              </a>
+            </header>
+
+            <div class="term">
+              <p class="term-head">Start a host</p>
+              <pre><code><span class="t-note"># in a clone of the repo</span>
+<span class="t-prompt">$</span> npm install
+<span class="t-prompt">$</span> cp node/env.example node/.env
+<span class="t-note"># set wallet, price, https address</span>
+<span class="t-prompt">$</span> npm run node</code></pre>
+            </div>
+          </div>
+
+          <dl class="fact-grid fact-grid-3">
+            <div>
+              <dt>Your price</dt>
+              <dd>Set it per hour, in ETH. A running rental keeps the price it started with.</dd>
+            </div>
+            <div>
+              <dt>Paid by the minute</dt>
+              <dd>Every started minute is yours. Withdraw your ETH whenever you like.</dd>
+            </div>
+            <div>
+              <dt>No cut</dt>
+              <dd>The contract takes no fee from what renters pay you.</dd>
+            </div>
+            <div>
+              <dt>One container per rental</dt>
+              <dd>Each rental runs in its own container on your machine.</dd>
+            </div>
+            <div>
+              <dt>No bond for 30 days</dt>
+              <dd>Each rental is capped at 0.01 ETH until then. After that you lock GRID to stay listed.</dd>
+            </div>
+            <div>
+              <dt>Your switch</dt>
+              <dd>Stopping the node pauses your listing.</dd>
+            </div>
           </dl>
         </div>
-        <figure class="field-wrap">
-          <div class="field" id="field" aria-hidden="true"></div>
-          <figcaption>Every square is a machine someone owns. Copper ones are rented right now.</figcaption>
-        </figure>
       </section>
 
-      <section id="how" class="section">
-        <h2>How a rental works</h2>
-        <p class="section-lede">Three contract calls. Nothing else sits between you and the machine.</p>
-        <ol class="steps">
-          <li>
-            <span class="step-call">listMachine()</span>
-            <h3>A host lists a machine</h3>
-            <p>GPU, memory, price per hour and the address of their node go on-chain. The host's own computer serves the rental; Grid stores nothing.</p>
-          </li>
-          <li>
-            <span class="step-call">rent()</span>
-            <h3>You pay the contract, not the host</h3>
-            <p>You pick the hours you want and send the ETH to the market contract. The host's node sees the rental and starts your container.</p>
-          </li>
-          <li>
-            <span class="step-call">endRental()</span>
-            <h3>Stop whenever you like</h3>
-            <p>End the rental yourself, or let it run out. The contract pays the host for every started minute and refunds you the rest.</p>
-          </li>
-        </ol>
-      </section>
+      <section class="section" id="coin" aria-labelledby="coin-title">
+        <div class="wrap coin">
+          <header class="section-head">
+            <h2 id="coin-title">GRID is the host bond. Nothing else.</h2>
+            <p class="section-lede">
+              Hosts lock it to stay listed. It is never a payment: compute is always paid in ETH, and you don’t need
+              GRID to rent.
+            </p>
+          </header>
 
-      <section id="why" class="section">
-        <h2>What changes when nobody is in the middle</h2>
-        <table class="compare">
-          <thead>
-            <tr>
-              <th scope="col"></th>
-              <th scope="col">A rental platform</th>
-              <th scope="col">Grid</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Your money</th>
-              <td>Held by the company</td>
-              <td>Held by a contract until the rental ends</td>
-            </tr>
-            <tr>
-              <th scope="row">Billing</th>
-              <td>By the hour, up front</td>
-              <td>By the minute, unused time refunded</td>
-            </tr>
-            <tr>
-              <th scope="row">Access</th>
-              <td>Through the platform's servers</td>
-              <td>Straight from the host's machine</td>
-            </tr>
-            <tr>
-              <th scope="row">Who can list</th>
-              <td>Approved providers</td>
-              <td>Anyone, with a bond after a 30-day trial</td>
-            </tr>
-            <tr>
-              <th scope="row">Who can switch it off</th>
-              <td>The company</td>
-              <td>Nobody. Hosts pause their own machines, that's all</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section id="hosts" class="section section-split">
-        <div>
-          <h2>Run a host</h2>
-          <p class="section-lede">Earn ETH from a GPU that would otherwise sit idle.</p>
-          <ul class="plain">
-            <li>You set the price per hour and are paid for every started minute, withdrawable any time.</li>
-            <li>Each rental runs in its own container on your machine. Renters get SSH, nothing more.</li>
-            <li>Your first 30 days need no bond, with rentals capped at 0.01 ETH each. After that you lock GRID to stay listed.</li>
-            <li>Stopping the node pauses your listing. A running rental's container stays up until it ends.</li>
-          </ul>
-        </div>
-        <div class="terminal" aria-label="Commands to start a host">
-          <span class="terminal-title">Linux · Windows · macOS</span>
-          <pre><code><span class="prompt">$</span> git clone https://github.com/Grid-Decentralized-Compute/grid
-<span class="prompt">$</span> cp node/env.example node/.env
-<span class="prompt">$</span> npm run node
-<span class="out">listed as machine #12, reachable at https://gpu.example.com</span></code></pre>
+          <dl class="fact-grid">
+            <div>
+              <dt>Locked to stay listed</dt>
+              <dd>After their first 30 days, hosts keep a GRID bond locked to stay in the market.</dd>
+            </div>
+            <div>
+              <dt>7 days to come back</dt>
+              <dd>When a host unlocks a bond, it comes back to them after 7 days.</dd>
+            </div>
+            <div>
+              <dt>Burned only for cheating</dt>
+              <dd>Part of a bond is burned only if its host is proven to have cheated a renter.</dd>
+            </div>
+            <div>
+              <dt>Launches on Creora</dt>
+              <dd>
+                With the Robinhood Chain launch, on the Creora launchpad. The whole supply goes on the bonding curve;
+                there is no team allocation.
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
-      <section id="coin" class="section">
-        <h2>GRID, the coin</h2>
-        <p class="section-lede">It does one thing.</p>
-        <div class="trio">
-          <div>
-            <h3>It is the host bond</h3>
-            <p>Hosts lock GRID to stay listed. The bond is never spent: it waits seven days to come back, and part of it is burned only if a host is proven to have cheated a renter.</p>
-          </div>
-          <div>
-            <h3>It is never a payment</h3>
-            <p>Compute is paid in ETH, always. GRID buys nothing on Grid and is not needed to rent.</p>
-          </div>
-          <div>
-            <h3>It launches on Creora</h3>
-            <p>With the Robinhood Chain launch, on the Creora launchpad. The whole supply goes on the curve; there is no team allocation.</p>
-          </div>
-        </div>
-      </section>
+      <section class="section" id="status" aria-labelledby="status-title">
+        <div class="wrap">
+          <header class="section-head">
+            <h2 id="status-title">Where it stands</h2>
+            <p class="section-lede">Grid is not on Robinhood Chain yet. This is the order things happen in.</p>
+          </header>
 
-      <section id="status" class="section">
-        <h2>Where it stands</h2>
-        <ul class="timeline">
-          <li class="done"><span>Built</span>The market contract, the GRID bond registry, the host node and the web app, tested end to end on a local chain.</li>
-          <li class="now"><span>Now</span>Deploying to the Robinhood Chain testnet and running the first real GPU host.</li>
-          <li><span>Next</span>The Robinhood Chain launch, with GRID on Creora and bonded listings.</li>
-          <li><span>Later</span>Swarm jobs: one job spread across many hosts at once, and more than SSH inside a rental.</li>
-        </ul>
+          <ol class="stages">
+            <li class="stage is-done">
+              <p class="stage-tag">Done</p>
+              <h3>Built and tested</h3>
+              <p class="stage-text">The market contract, the bond registry, the host node and the web app, tested end to end on a local chain.</p>
+            </li>
+            <li class="stage is-now" aria-current="step">
+              <p class="stage-tag">Now</p>
+              <h3>Testnet and a real GPU</h3>
+              <p class="stage-text">Deploying to the Robinhood Chain testnet and running the first real GPU host.</p>
+            </li>
+            <li class="stage">
+              <p class="stage-tag">Next</p>
+              <h3>The Robinhood Chain launch</h3>
+              <p class="stage-text">Grid on Robinhood Chain, with GRID launched on Creora.</p>
+            </li>
+            <li class="stage">
+              <p class="stage-tag">Later</p>
+              <h3>Swarm jobs</h3>
+              <p class="stage-text">One job spread across many hosts, and more than SSH inside a rental.</p>
+            </li>
+          </ol>
+        </div>
       </section>
     </main>
 
     <footer class="foot">
-      <p>Grid is a protocol nobody operates. Listings and payments live in contracts on Robinhood Chain; access comes straight from each host.</p>
-      <nav aria-label="Links">
-        <a href="https://grid-5y8.pages.dev/">Open the market</a>
-        <a href="https://github.com/Grid-Decentralized-Compute/grid">Source</a>
-      </nav>
+      <div class="wrap">
+        <div class="foot-cta">
+          <p class="foot-title">Rent a GPU. <span>Or list yours.</span></p>
+          <div class="actions">
+            <a class="btn btn-primary" href="https://grid-5y8.pages.dev/">Open the market</a>
+            <a class="btn btn-ghost" href="https://github.com/Grid-Decentralized-Compute/grid#run-a-real-host">Read the host guide</a>
+          </div>
+        </div>
+        <div class="foot-base">
+          <a class="brand" href="#top" aria-label="Grid, back to top">
+            <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 5.5H5.5v13H18V12h-6" />
+              <circle cx="12" cy="12" r="2.6" />
+            </svg>
+            <span>Grid</span>
+          </a>
+          <p class="foot-text">
+            A compute market on Robinhood Chain. Listings and payments live in contracts; access comes straight from each host.
+          </p>
+          <nav class="foot-nav" aria-label="Links">
+            <a href="https://grid-5y8.pages.dev/">Market</a>
+            <a href="https://github.com/Grid-Decentralized-Compute/grid">Source</a>
+            <a href="https://github.com/Grid-Decentralized-Compute/grid#run-a-real-host">Host guide</a>
+          </nav>
+        </div>
+      </div>
     </footer>
 
     <script>
-      // The field: 12 x 8 machines, a few rented (copper). One rental starts or ends every few seconds.
+      // Plays one example rental in the hero: list, rent, SSH, run the meter, settle. Static when motion is reduced.
       (function () {
-        const field = document.getElementById("field");
-        if (!field) return;
-        const total = 96;
-        const tiles = [];
-        for (let i = 0; i < total; i++) {
-          const t = document.createElement("i");
-          field.appendChild(t);
-          tiles.push(t);
+        var fig = document.querySelector("[data-rental]");
+        if (!fig || !window.matchMedia) return;
+        var usedEl = fig.querySelector("[data-used]");
+        var leftEl = fig.querySelector("[data-left]");
+        var later = fig.querySelectorAll("[data-from]");
+        var TOTAL = 180;
+        var END = 47;
+        var steps = [
+          ["list", 2200],
+          ["rent", 2200],
+          ["access", 2000],
+          ["run", 5200],
+          ["end", 2800],
+          ["hold", 3200]
+        ];
+        var order = { list: 0, rent: 1, access: 2, run: 3, end: 4, hold: 5, static: 9 };
+        var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var index = 0;
+        var timer = 0;
+        var frame = 0;
+        var playing = false;
+        var visible = true;
+
+        function setMinutes(m) {
+          usedEl.textContent = m;
+          leftEl.textContent = TOTAL - m;
+          fig.style.setProperty("--used", (m / TOTAL).toFixed(4));
         }
-        // Deterministic start so the page looks the same on every load.
-        [3, 9, 17, 26, 31, 44, 52, 58, 67, 73, 85, 90].forEach((i) => tiles[i].classList.add("on"));
-        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (reduced) return;
-        let seed = 7;
-        const rand = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
-        setInterval(() => {
-          const t = tiles[Math.floor(rand() * total)];
-          t.classList.toggle("on");
-        }, 2600);
+
+        // Values that only exist later in the rental show a dash until their step.
+        function reveal(name) {
+          for (var i = 0; i < later.length; i++) {
+            var el = later[i];
+            if (!el.hasAttribute("data-value")) el.setAttribute("data-value", el.textContent);
+            var shown = order[name] >= order[el.getAttribute("data-from")];
+            el.textContent = shown ? el.getAttribute("data-value") : "—";
+            el.classList.toggle("is-pending", !shown);
+          }
+        }
+
+        function runMeter(ms) {
+          var start = performance.now();
+          cancelAnimationFrame(frame);
+          (function tick(now) {
+            var p = Math.max(0, Math.min(1, (now - start) / ms));
+            setMinutes(Math.round(p * END));
+            if (p < 1) frame = requestAnimationFrame(tick);
+          })(start);
+        }
+
+        function step() {
+          var name = steps[index][0];
+          fig.setAttribute("data-phase", name);
+          reveal(name);
+          if (name === "list") setMinutes(0);
+          if (name === "run") runMeter(steps[index][1] - 400);
+          if (name === "end") {
+            cancelAnimationFrame(frame);
+            setMinutes(END);
+          }
+          timer = setTimeout(function () {
+            index = (index + 1) % steps.length;
+            step();
+          }, steps[index][1]);
+        }
+
+        function play() {
+          if (playing || motion.matches || !visible || document.hidden) return;
+          playing = true;
+          step();
+        }
+
+        function pause() {
+          playing = false;
+          clearTimeout(timer);
+          cancelAnimationFrame(frame);
+        }
+
+        function showStatic() {
+          pause();
+          index = 0;
+          fig.setAttribute("data-phase", "static");
+          reveal("static");
+          setMinutes(END);
+        }
+
+        if ("IntersectionObserver" in window) {
+          new IntersectionObserver(function (entries) {
+            visible = entries[0].isIntersecting;
+            if (visible) play();
+            else pause();
+          }).observe(fig);
+        }
+        document.addEventListener("visibilitychange", function () {
+          if (document.hidden) pause();
+          else play();
+        });
+        if (motion.addEventListener) {
+          motion.addEventListener("change", function () {
+            if (motion.matches) showStatic();
+            else play();
+          });
+        }
+        play();
       })();
     </script>
   </body>
