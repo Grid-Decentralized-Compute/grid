@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grid banner</title>
+    <!-- Source of brand/grid-banner.png (1500x500, the X header). Render it at exactly that size. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Newsreader:opsz,wght@6..72,300&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1500px;
+        height: 500px;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+      svg {
+        position: absolute;
+        inset: 0;
+      }
+      .copy {
+        position: absolute;
+        left: 132px;
+        top: 112px;
+        color: #f3f3f0;
+      }
+      .wordmark {
+        font-family: "Newsreader", serif;
+        font-weight: 300;
+        font-size: 112px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .line {
+        margin-top: 22px;
+        font-family: "Geist", sans-serif;
+        font-size: 27px;
+        color: #c3c5cb;
+        letter-spacing: -0.005em;
+      }
+      .engraved {
+        margin-top: 18px;
+        font-family: "Geist", sans-serif;
+        font-weight: 500;
+        font-size: 12.5px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: #6c6f77;
+      }
+      .legend {
+        position: absolute;
+        right: 52px;
+        bottom: 30px;
+        display: flex;
+        gap: 22px;
+        padding: 9px 14px;
+        background: #0a0a0a;
+        font-family: "Geist", sans-serif;
+        font-weight: 500;
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #6c6f77;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .legend i {
+        display: block;
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+      }
+      .legend .renter {
+        border-radius: 50%;
+        border: 1.5px solid #e7e7e2;
+        width: 7px;
+        height: 7px;
+      }
+      .legend .host { background: #6f8fd0; }
+      .legend .tie { background: #c9a35e; }
+      .legend .idle { background: #16181c; border: 1px solid #2c2f36; width: 7px; height: 7px; }
+    </style>
+  </head>
+  <body>
+    <svg id="net" width="1500" height="500" viewBox="0 0 1500 500"></svg>
+    <div class="copy">
+      <div class="wordmark">Grid</div>
+      <div class="line">Rent GPUs from their owners.</div>
+      <div class="engraved">One machine, or one job across many</div>
+    </div>
+    <div class="legend">
+      <span><i class="renter"></i>Renter</span>
+      <span><i class="host"></i>Host running a task</span>
+      <span><i class="tie"></i>Tie-break</span>
+      <span><i class="idle"></i>Idle machine</span>
+    </div>
+
+    <script>
+      // A peer-to-peer network of machines, with one swarm job fanning out from a renter to many
+      // hosts. Seeded, so the banner renders the same every time.
+      let seed = 20261029;
+      const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+      const NS = "http://www.w3.org/2000/svg";
+      const svg = document.getElementById("net");
+      const el = (name, attrs) => {
+        const node = document.createElementNS(NS, name);
+        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+        svg.appendChild(node);
+        return node;
+      };
+
+      // Fade the network out behind the words.
+      const defs = el("defs", {});
+      defs.innerHTML = `
+        <linearGradient id="fade" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stop-color="#0a0a0a" stop-opacity="1"/>
+          <stop offset="0.36" stop-color="#0a0a0a" stop-opacity="0.96"/>
+          <stop offset="0.52" stop-color="#0a0a0a" stop-opacity="0"/>
+        </linearGradient>`;
+
+      // Machines on a jittered lattice.
+      const nodes = [];
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 25; col++) {
+          if (rand() < 0.28) continue;
+          nodes.push({ x: 40 + col * 60 + (rand() - 0.5) * 26, y: 34 + row * 62 + (rand() - 0.5) * 26 });
+        }
+      }
+
+      // Peer connections: each machine to its two nearest neighbours.
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      const edges = new Set();
+      nodes.forEach((a, i) => {
+        nodes
+          .map((b, j) => [dist(a, b), j])
+          .filter(([, j]) => j !== i)
+          .sort((p, q) => p[0] - q[0])
+          .slice(0, 2)
+          .forEach(([, j]) => edges.add(i < j ? `${i}-${j}` : `${j}-${i}`));
+      });
+      for (const e of edges) {
+        const [i, j] = e.split("-").map(Number);
+        el("line", { x1: nodes[i].x, y1: nodes[i].y, x2: nodes[j].x, y2: nodes[j].y, stroke: "#1f2227", "stroke-width": 1 });
+      }
+
+      // One job: a renter, and the hosts running its tasks.
+      const renter = nodes.reduce((best, n) => (dist(n, { x: 1010, y: 250 }) < dist(best, { x: 1010, y: 250 }) ? n : best));
+      const hosts = nodes
+        .filter((n) => n !== renter && n.x > 760 && n.y < 410 && dist(n, renter) > 90 && dist(n, renter) < 420)
+        .sort(() => rand() - 0.5)
+        .slice(0, 13);
+      const disputed = hosts[4];
+      for (const h of hosts) {
+        el("line", {
+          x1: renter.x,
+          y1: renter.y,
+          x2: h.x,
+          y2: h.y,
+          stroke: h === disputed ? "#c9a35e" : "#6f8fd0",
+          "stroke-width": 1.1,
+          "stroke-opacity": 0.55,
+        });
+      }
+
+      // Machines drawn as small chips; working hosts lit.
+      for (const n of nodes) {
+        const lit = hosts.includes(n);
+        const color = n === disputed ? "#c9a35e" : "#6f8fd0";
+        el("rect", {
+          x: n.x - 6,
+          y: n.y - 6,
+          width: 12,
+          height: 12,
+          rx: 2.5,
+          fill: lit ? color : "#16181c",
+          stroke: lit ? color : "#2c2f36",
+          "stroke-width": 1,
+        });
+      }
+      // The renter: a ring.
+      el("circle", { cx: renter.x, cy: renter.y, r: 10, fill: "#0a0a0a", stroke: "#e7e7e2", "stroke-width": 1.5 });
+      el("circle", { cx: renter.x, cy: renter.y, r: 3, fill: "#e7e7e2" });
+
+      el("rect", { x: 0, y: 0, width: 1500, height: 500, fill: "url(#fade)" });
+    </script>
+  </body>
+</html>
