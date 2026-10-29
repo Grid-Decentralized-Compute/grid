@@ -3,11 +3,22 @@ import { type AnchorHTMLAttributes, useEffect, useState } from "react";
 // A few pages need no router library: pushState plus a listener set.
 const listeners = new Set<() => void>();
 
+/** Scrolls to the element named by the URL hash, or to the top when there is none. */
+export function scrollToHash() {
+  const id = decodeURIComponent(window.location.hash.slice(1));
+  // Wait a frame so the page that owns the anchor has rendered.
+  requestAnimationFrame(() => {
+    const el = id ? document.getElementById(id) : null;
+    if (el) el.scrollIntoView();
+    else window.scrollTo(0, 0);
+  });
+}
+
 export function navigate(to: string) {
-  if (to === window.location.pathname) return;
+  if (to === window.location.pathname + window.location.hash) return;
   window.history.pushState(null, "", to);
   listeners.forEach((l) => l());
-  window.scrollTo(0, 0);
+  scrollToHash();
 }
 
 export function usePath(): string {

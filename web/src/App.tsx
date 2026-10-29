@@ -1,17 +1,23 @@
 import { Component, type ReactNode, useEffect } from "react";
 import { Caseback } from "./components/Caseback";
+import { GitHubIcon, XIcon } from "./components/Icons";
 import { Wallet } from "./components/Wallet";
+import { SOURCE_URL, X_URL } from "./lib/links";
 import { About } from "./pages/About";
 import { Host } from "./pages/Host";
+import { Legal } from "./pages/Legal";
 import { Market } from "./pages/Market";
 import { Rentals } from "./pages/Rentals";
-import { Link, usePath } from "./router";
+import { Link, scrollToHash, usePath } from "./router";
 
-const pages: Record<string, { label: string; title: string; render: () => ReactNode }> = {
-  "/": { label: "Market", title: "Grid", render: () => <Market /> },
-  "/rentals": { label: "Rentals", title: "Rentals · Grid", render: () => <Rentals /> },
-  "/host": { label: "Host", title: "Host · Grid", render: () => <Host /> },
-  "/about": { label: "About", title: "About · Grid", render: () => <About /> },
+type PageDef = { label: string; title: string; nav: boolean; render: () => ReactNode };
+
+const pages: Record<string, PageDef> = {
+  "/": { label: "Market", title: "Grid", nav: true, render: () => <Market /> },
+  "/rentals": { label: "Rentals", title: "Rentals · Grid", nav: true, render: () => <Rentals /> },
+  "/host": { label: "Host", title: "Host · Grid", nav: true, render: () => <Host /> },
+  "/about": { label: "About", title: "About · Grid", nav: true, render: () => <About /> },
+  "/legal": { label: "Legal", title: "Legal · Grid", nav: false, render: () => <Legal /> },
 };
 
 export default function App() {
@@ -22,6 +28,11 @@ export default function App() {
     document.title = page?.title ?? "Not found · Grid";
   }, [page]);
 
+  // A link that arrives with #section (e.g. /legal#privacy) opens at that section.
+  useEffect(() => {
+    if (window.location.hash) scrollToHash();
+  }, []);
+
   return (
     <div className="mx-auto flex min-h-screen max-w-[1040px] flex-col px-5 sm:px-8">
       <header className="flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
@@ -30,7 +41,9 @@ export default function App() {
           Grid
         </Link>
         <nav aria-label="Pages" className="order-last flex w-full gap-6 text-[13px] sm:order-none sm:w-auto">
-          {Object.entries(pages).map(([href, p]) => (
+          {Object.entries(pages)
+            .filter(([, p]) => p.nav)
+            .map(([href, p]) => (
             <Link
               key={href}
               href={href}
@@ -45,7 +58,14 @@ export default function App() {
             </Link>
           ))}
         </nav>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-5">
+          <a href={X_URL} aria-label="Grid on X" className="text-muted transition-colors hover:text-steel">
+            <XIcon className="size-[15px]" />
+          </a>
+          <a href={SOURCE_URL} aria-label="Source on GitHub" className="text-muted transition-colors hover:text-steel">
+            <GitHubIcon className="size-[16px]" />
+          </a>
+          <span className="h-4 w-px bg-line" aria-hidden="true" />
           <Wallet />
         </div>
       </header>

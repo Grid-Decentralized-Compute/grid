@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useBlockNumber, useChainId, useChains, usePublicClient } from "wagmi";
+import { useBlockNumber, useChainId, usePublicClient } from "wagmi";
 
 /** Sixty slots, like the minute track on a dial; one per recent block. */
 const SLOTS = 60;
@@ -12,7 +12,6 @@ type Block = { n: bigint; txs: number };
  */
 export function BlockTrack() {
   const chainId = useChainId();
-  const chain = useChains().find((c) => c.id === chainId);
   const client = usePublicClient();
   const { data: head } = useBlockNumber({ watch: true });
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -81,12 +80,13 @@ export function BlockTrack() {
           );
         })}
       </div>
+      {/* The footer already names the network and block; this caption says what the ticks measure. */}
       <figcaption className="engraved tnum mt-3 text-faint">
-        {chain?.name ?? "Network"}
+        Transactions per block
         {latest && (
           <>
             <span className="mx-2 text-line">/</span>
-            Block {latest.n.toLocaleString("en-US")}
+            {latest.txs} in the latest
           </>
         )}
       </figcaption>
