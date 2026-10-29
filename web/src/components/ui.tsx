@@ -91,4 +91,4 @@ export function Note({ children, className = "" }: { children: ReactNode; classN
 }
 
 export const linkClass =
-  "text-steel underline decoration-steel-edge underline-offset-[3px] transition-colors hover:decoration-steel";
+  "ink-link text-steel";

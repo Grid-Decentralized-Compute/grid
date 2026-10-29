@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useBlockNumber, useChainId, usePublicClient } from "wagmi";
 
 /** Sixty slots, like the minute track on a dial; one per recent block. */
 const SLOTS = 60;
+const SLOT_PX = 4;
+/** How many slots either side the magnifier reaches. */
+const LENS_SPREAD = 2.4;
 
 type Block = { n: bigint; txs: number };
 
@@ -16,6 +19,8 @@ export function BlockTrack() {
   const { data: head } = useBlockNumber({ watch: true });
   const [blocks, setBlocks] = useState<Block[]>([]);
   const known = useRef<Map<bigint, Block>>(new Map());
+  /** The pointer's position along the track, in slots, or null when it is elsewhere. */
+  const [pointer, setPointer] = useState<number | null>(null);
 
   // A different chain has different blocks.
   useEffect(() => {
@@ -59,34 +64,66 @@ export function BlockTrack() {
   const busiest = Math.max(1, ...blocks.map((b) => b.txs));
   const empty = SLOTS - blocks.length;
   const latest = blocks[blocks.length - 1];
+  const hoverIndex = pointer === null ? -1 : Math.round(pointer);
+  const hover = hoverIndex >= empty ? blocks[hoverIndex - empty] : undefined;
+
+  /** How strongly the lens acts on slot i: 1 under the pointer, falling off over a few slots. */
+  const lens = (i: number) => (pointer === null ? 0 : Math.exp(-((i - pointer) ** 2) / (2 * LENS_SPREAD ** 2)));
+
+  function track(e: MouseEvent<HTMLDivElement>) {
+    const box = e.currentTarget.getBoundingClientRect();
+    setPointer(Math.min(SLOTS - 1, Math.max(0, (e.clientX - box.left) / SLOT_PX - 0.5)));
+  }
 
   return (
     <figure className="m-0">
-      <div className="flex h-[22px] items-end gap-[3px]" aria-hidden="true">
-        {Array.from({ length: empty }, (_, i) => (
-          <span key={`e${i}`} className={`w-px bg-line ${i % 5 === 0 ? "h-[6px]" : "h-[3px]"}`} />
-        ))}
-        {blocks.map((b, i) => {
-          const isLatest = i === blocks.length - 1;
+      {/* A magnifier: ticks near the pointer grow and darken, the one under it turns steel. Each tick
+          sits in a fixed 4 px slot and only transforms, so nothing moves sideways while you sweep. */}
+      <div className="flex h-[22px] w-max items-end" onMouseMove={track} onMouseLeave={() => setPointer(null)}>
+        {Array.from({ length: SLOTS }, (_, i) => {
+          const b = i >= empty ? blocks[i - empty] : undefined;
+          const g = lens(i);
+          const steel = b ? (hover ? b === hover : b === latest) : false;
           // Square-root scale so one busy block doesn't flatten the rest.
-          const h = 3 + Math.round(19 * Math.sqrt(b.txs / busiest));
+          const h = !b ? (i % 5 === 0 ? 6 : 3) : b.txs === 0 && i % 5 === 0 ? 6 : 3 + Math.round(19 * Math.sqrt(b.txs / busiest));
           return (
             <span
-              key={b.n.toString()}
-              title={`Block ${b.n.toLocaleString("en-US")} · ${b.txs} transaction${b.txs === 1 ? "" : "s"}`}
-              className={`tick w-px transition-[height,background-color] duration-700 ${isLatest ? "bg-steel" : "bg-tick"}`}
-              style={{ height: b.txs === 0 && (empty + i) % 5 === 0 ? 6 : h }}
-            />
+              key={b ? b.n.toString() : `e${i}`}
+              aria-hidden="true"
+              className="flex h-full w-1 origin-bottom items-end justify-center transition-transform duration-200 ease-out"
+              style={{ transform: `scaleY(${1 + 1.6 * g})` }}
+            >
+              <span
+                className={`relative transition-[height,width] duration-200 ease-out ${b ? "tick bg-tick" : "bg-line"}`}
+                style={{ height: h, width: 1 + 2 * g }}
+              >
+                <span
+                  className={`absolute inset-0 transition-[opacity,background-color] duration-200 ${steel ? "bg-steel" : "bg-ink"}`}
+                  style={{ opacity: steel ? 1 : g * 0.9 }}
+                />
+              </span>
+            </span>
           );
         })}
       </div>
-      {/* The footer already names the network and block; this caption says what the ticks measure. */}
+      {/* The footer already names the network and block; this caption says what the ticks measure,
+          or reads out the one under the pointer. */}
       <figcaption className="engraved tnum mt-3 text-faint">
-        Transactions per block
-        {latest && (
+        {hover ? (
           <>
+            <span className="text-steel">Block {hover.n.toLocaleString("en-US")}</span>
             <span className="mx-2 text-line">/</span>
-            {latest.txs} in the latest
+            {hover.txs} {hover.txs === 1 ? "transaction" : "transactions"}
+          </>
+        ) : (
+          <>
+            Transactions per block
+            {latest && (
+              <>
+                <span className="mx-2 text-line">/</span>
+                {latest.txs} in the latest
+              </>
+            )}
           </>
         )}
       </figcaption>

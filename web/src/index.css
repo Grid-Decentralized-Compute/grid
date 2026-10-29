@@ -124,10 +124,182 @@ html.theme-fade * {
   }
 }
 
+/* The network plate: each job wires out to its hosts, they light, a tie-break host may join, then the
+   job fades while others run elsewhere. One 14 s loop; each job is offset by --d (NetworkPlate.tsx). */
+.job,
+.job .wire,
+.job .lit {
+  animation-duration: 14s;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  animation-delay: var(--d, 0s);
+}
+.job {
+  animation-name: job-life;
+  animation-timing-function: linear;
+}
+.job .wire {
+  stroke-dasharray: 1;
+  animation-name: job-wire;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.job .lit {
+  animation-name: job-lit;
+}
+.job .wire.tie {
+  animation-name: job-tie-wire;
+}
+.job .lit.tie {
+  animation-name: job-tie-lit;
+}
+
+@keyframes job-life {
+  0% { opacity: 0; }
+  2% { opacity: 1; }
+  38% { opacity: 1; }
+  44% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes job-wire {
+  0%, 2% { stroke-dashoffset: 1; }
+  8%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes job-lit {
+  0%, 7% { opacity: 0; }
+  9%, 100% { opacity: 1; }
+}
+@keyframes job-tie-wire {
+  0%, 17% { stroke-dashoffset: 1; }
+  23%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes job-tie-lit {
+  0%, 22% { opacity: 0; }
+  24%, 100% { opacity: 1; }
+}
+
+/* A job sent by a click on the plate runs once. */
+.job.once,
+.job.once .wire,
+.job.once .lit {
+  animation-iteration-count: 1;
+}
+
+/* The plate boots: machines come online in a ripple from the first relay (--b is the delay). */
+.boot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-in 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--b, 0ms);
+}
+.boot-link {
+  stroke-dasharray: 1;
+  animation: link-in 640ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(var(--b, 0ms) + 120ms);
+}
+.boot-fade {
+  animation: fade-in 600ms ease both;
+  animation-delay: calc(var(--b, 0ms) + 200ms);
+}
+.ambient-in {
+  animation: fade-in 900ms ease both;
+  animation-delay: 1100ms;
+}
+@keyframes node-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+@keyframes link-in {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Headline words rise from behind a mask, one after another. */
+.reveal-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+.reveal {
+  display: inline-block;
+  animation: reveal 1100ms cubic-bezier(0.16, 0.8, 0.12, 1) both;
+  animation-delay: calc(var(--i, 0) * 65ms + 60ms);
+}
+@keyframes reveal {
+  from {
+    transform: translateY(135%);
+  }
+}
+
+/* Links: a steel line draws over the hairline underline, left to right. */
+.ink-link {
+  text-decoration: none;
+  background-image: linear-gradient(var(--color-steel), var(--color-steel)),
+    linear-gradient(var(--color-steel-edge), var(--color-steel-edge));
+  background-size: 0% 1px, 100% 1px;
+  background-position: 0 100%, 0 100%;
+  background-repeat: no-repeat;
+  padding-bottom: 1px;
+  transition: background-size 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.ink-link:hover {
+  background-size: 100% 1px, 100% 1px;
+}
+
+/* Navigation: the steel rule under the current page; on hover it draws in from the left and
+   leaves to the right. */
+.nav-link {
+  position: relative;
+}
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  height: 1.5px;
+  background: var(--color-steel);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.nav-link:hover::after,
+.nav-link[aria-current="page"]::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tick,
-  .rise {
+  .rise,
+  .job,
+  .job .wire,
+  .job .lit,
+  .boot,
+  .boot-link,
+  .boot-fade,
+  .ambient-in,
+  .reveal {
     animation: none;
+  }
+  .job:not(.still):not(.once) {
+    opacity: 0;
+  }
+  .ink-link,
+  .nav-link::after {
+    transition: none;
   }
 }
 

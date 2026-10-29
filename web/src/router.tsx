@@ -14,11 +14,11 @@ export function scrollToHash() {
   });
 }
 
-export function navigate(to: string) {
+export function navigate(to: string, { scroll = true }: { scroll?: boolean } = {}) {
   if (to === window.location.pathname + window.location.hash) return;
   window.history.pushState(null, "", to);
   listeners.forEach((l) => l());
-  scrollToHash();
+  if (scroll) scrollToHash();
 }
 
 export function usePath(): string {
@@ -36,7 +36,13 @@ export function usePath(): string {
 }
 
 /** An in-app link: plain <a> semantics, client-side navigation on a normal click. */
-export function Link({ href, onClick, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+/** `scroll={false}` keeps the page where it is, for links that switch a view in place. */
+export function Link({
+  href,
+  onClick,
+  scroll = true,
+  ...props
+}: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; scroll?: boolean }) {
   return (
     <a
       href={href}
@@ -45,7 +51,7 @@ export function Link({ href, onClick, ...props }: AnchorHTMLAttributes<HTMLAncho
         onClick?.(e);
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
-        navigate(href);
+        navigate(href, { scroll });
       }}
     />
   );

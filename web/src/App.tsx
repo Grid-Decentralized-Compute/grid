@@ -15,7 +15,7 @@ import { Link, scrollToHash, usePath } from "./router";
 type PageDef = { label: string; title: string; nav: boolean; render: () => ReactNode };
 
 const pages: Record<string, PageDef> = {
-  "/": { label: "Market", title: "Grid", nav: true, render: () => <Market mode="direct" /> },
+  "/": { label: "Market", title: "Grid · Decentralized compute", nav: true, render: () => <Market mode="direct" /> },
   "/swarm": { label: "Market", title: "Swarm · Grid", nav: false, render: () => <Market mode="swarm" /> },
   "/rentals": { label: "Rentals", title: "Rentals · Grid", nav: true, render: () => <Rentals /> },
   "/host": { label: "Host", title: "Host · Grid", nav: true, render: () => <Host /> },
@@ -57,16 +57,12 @@ export default function App() {
               key={href}
               href={href}
               aria-current={navActive === href ? "page" : undefined}
-              className={
-                navActive === href
-                  ? "text-ink underline decoration-steel decoration-[1.5px] underline-offset-[6px]"
-                  : "text-muted transition-colors hover:text-ink"
-              }
+              className={`nav-link transition-colors ${navActive === href ? "text-ink" : "text-muted hover:text-ink"}`}
             >
               {p.label}
             </Link>
           ))}
-          <a href={DOCS_URL} className="text-muted transition-colors hover:text-ink">
+          <a href={DOCS_URL} className="nav-link text-muted transition-colors hover:text-ink">
             Docs
           </a>
         </nav>
@@ -84,7 +80,8 @@ export default function App() {
       </header>
 
       <main className="flex-1 pb-28 pt-12 sm:pt-20">
-        <ErrorBoundary key={clean}>
+        {/* Direct and Swarm are one page, so switching between them keeps it mounted. */}
+        <ErrorBoundary key={clean === "/swarm" ? "/" : clean}>
           {page ? (
             page.render()
           ) : (

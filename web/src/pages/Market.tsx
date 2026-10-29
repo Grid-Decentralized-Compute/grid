@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ContractFunctionReturnType } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { gridMarketAbi, parseMetadata, stakeRegistryAbi, TRIAL_MAX_DEPOSIT_WEI } from "@grid/shared";
 import { BlockTrack } from "../components/BlockTrack";
+import { NetworkPlate } from "../components/NetworkPlate";
 import { Button, ErrorText, Input, linkClass, Status, type Tone } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtEth, fmtGb, shortAddr, shortCpu } from "../lib/format";
@@ -20,6 +21,8 @@ const MAX_HOURS = 720;
 /** Desktop column template, shared by the header and every row. */
 const COLS =
   "sm:grid sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_7rem_6rem_4.5rem] sm:items-center sm:gap-6";
+
+const HEADLINE = "Rent GPUs from their owners.";
 
 export type MarketMode = "direct" | "swarm";
 
@@ -41,32 +44,54 @@ const MODES: { mode: MarketMode; href: string; title: string; line: string }[] =
 export function Market({ mode }: { mode: MarketMode }) {
   return (
     <>
-      <section>
-        <h1 className="rise font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
-          Rent GPUs from their owners.
-        </h1>
-        <p className="rise mt-6 max-w-[60ch] text-[16px] text-muted [animation-delay:90ms]">
-          Rent a whole machine from one host, or hand a job to many hosts at once. Either way the ETH is held by a contract
-          on Robinhood Chain, and hosts are paid only for what they deliver.
-        </p>
-        <div className="rise mt-10 [animation-delay:180ms]">
-          <BlockTrack />
+      <section className="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
+        <div>
+          <p className="rise engraved text-steel">Decentralized compute</p>
+          <h1 className="mt-5 text-balance font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
+            {HEADLINE.split(" ").map((word, i) => (
+              <Fragment key={i}>
+                {i > 0 && " "}
+                <span className="reveal-mask">
+                  <span className="reveal" style={{ ["--i" as string]: i }}>
+                    {word}
+                  </span>
+                </span>
+              </Fragment>
+            ))}
+          </h1>
+          <p className="rise mt-6 max-w-[56ch] text-[16px] text-muted [animation-delay:90ms]">
+            Grid has no servers of its own. The machines belong to the people who list them, the ETH is held by contracts
+            on Robinhood Chain, and nodes reach each other directly over a peer-to-peer network.
+          </p>
+          <div className="rise mt-10 [animation-delay:180ms]">
+            <BlockTrack />
+          </div>
         </div>
+        <NetworkPlate className="rise max-w-[420px] [animation-delay:240ms] lg:max-w-none" />
       </section>
 
-      <div role="tablist" aria-label="How to rent" className="mt-16 grid gap-px border-y border-line sm:mt-24 sm:grid-cols-2">
+      <div role="tablist" aria-label="How to rent" className="relative mt-16 grid gap-px border-y border-line sm:mt-24 sm:grid-cols-2">
+        {/* One steel index that travels to the chosen tab. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-0 hidden h-0.5 w-1/2 bg-steel transition-transform duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] sm:block"
+          style={{ transform: `translateX(${mode === "swarm" ? "100%" : "0%"})` }}
+        />
         {MODES.map((m) => {
           const active = m.mode === mode;
           return (
             <Link
               key={m.mode}
               href={m.href}
+              scroll={false}
               role="tab"
               aria-selected={active}
-              className={`group block border-t-2 py-5 pr-8 transition-colors ${active ? "border-steel" : "border-transparent hover:border-line"}`}
+              className={`group block border-t-2 py-5 pr-8 transition-colors ${active ? "border-steel sm:border-transparent" : "border-transparent hover:border-line"}`}
             >
-              <span className={`engraved ${active ? "text-steel" : "text-ink"}`}>{m.title}</span>
-              <span className={`mt-2 block max-w-[46ch] text-[14px] ${active ? "text-ink" : "text-muted group-hover:text-ink"}`}>
+              <span className={`engraved transition-colors duration-500 ${active ? "text-steel" : "text-ink"}`}>{m.title}</span>
+              <span
+                className={`mt-2 block max-w-[46ch] text-[14px] transition-colors duration-500 ${active ? "text-ink" : "text-muted group-hover:text-ink"}`}
+              >
                 {m.line}
               </span>
             </Link>
@@ -216,7 +241,12 @@ function MachineRow({ item, bondingOff }: { item: Listing; bondingOff: boolean }
     .join(" · ");
 
   return (
-    <div className="border-b border-line">
+    <div className="group relative border-b border-line">
+      {/* A steel index lights beside the row under the pointer. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-3.5 top-[26px] h-3 w-[2px] origin-center scale-y-0 bg-steel transition-transform duration-300 ease-out group-hover:scale-y-100"
+      />
       <div className={`flex flex-col gap-1 py-4 ${COLS}`}>
         <div className="min-w-0">
           <div className="truncate font-medium">{meta?.name || `Machine ${id}`}</div>
