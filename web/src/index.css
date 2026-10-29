@@ -1,16 +1,22 @@
 @import "tailwindcss";
 
+/* Glashütte: a silver dial, blued-steel hands, fine engraving. */
 @theme {
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --color-ink: #0a0a0a;
-  --color-muted: #666666;
-  --color-faint: #999999;
-  --color-line: #ebebeb;
-  --color-wash: #f6f6f6;
-  --color-ok: #16a34a;
-  --color-busy: #d97706;
-  --color-bad: #c81e1e;
+  --font-serif: "Newsreader", ui-serif, Georgia, serif;
+  --color-dial: #f3f3f0; /* silver dial */
+  --color-plate: #ebebe6; /* recessed sub-dial */
+  --color-ink: #16181d;
+  --color-muted: #5d616a;
+  --color-faint: #989ba2;
+  --color-line: #d9d9d3;
+  --color-wash: #e9e9e3;
+  --color-steel: #1f3c78; /* heat-blued steel */
+  --color-gold: #9a7330; /* rose-gold accent, used sparingly */
+  --color-ok: #1f3c78;
+  --color-busy: #9a7330;
+  --color-bad: #a3262a;
 }
 
 :root {
@@ -22,24 +28,32 @@ html {
 }
 
 body {
-  @apply bg-white text-ink antialiased;
+  @apply bg-dial text-ink antialiased;
   font-size: 15px;
   line-height: 1.6;
 }
 
 ::selection {
-  background: var(--color-ink);
+  background: var(--color-steel);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-ink);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: 1.5px solid var(--color-steel);
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Small spaced capitals, like the engraving on a dial. */
+.engraved {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 /* number inputs: no spinners */

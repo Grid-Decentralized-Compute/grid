@@ -10,7 +10,6 @@ import {
   isSecureEndpoint,
   parseMetadata,
 } from "@grid/shared";
-import { NotLive } from "../components/NotLive";
 import { Button, ErrorText, linkClass, Page, Stat, Status } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtDate, fmtDuration, fmtEth, shortError } from "../lib/format";
@@ -20,7 +19,7 @@ import { Link } from "../router";
 
 type RentalView = ContractFunctionReturnType<typeof gridMarketAbi, "view", "getRentalsOf">[number];
 
-const LEDE = "Machines rented from this wallet. End a rental early and the unused time comes back to you.";
+
 
 export function Rentals() {
   const deployment = useDeployment();
@@ -42,26 +41,31 @@ export function Rentals() {
   });
   const tx = useTx();
 
-  if (!deployment) {
+  if (!address) {
     return (
-      <Page title="Rentals" lede={LEDE}>
-        <NotLive />
+      <Page title="Rentals" lede="Rentals paid for from this wallet. If you end one early, the time you did not use is refunded.">
+        <p className="text-muted">Connect a wallet to see its rentals.</p>
       </Page>
     );
   }
-  if (!address) {
+  if (!deployment) {
     return (
-      <Page title="Rentals" lede={LEDE}>
-        <p className="text-muted">Connect a wallet to see its rentals.</p>
+      <Page title="Rentals" lede="Rentals paid for from this wallet. If you end one early, the time you did not use is refunded.">
+        <p className="border-t border-line py-8 text-muted">
+          No rentals yet.{" "}
+          <Link href="/" className={linkClass}>
+            Find a machine
+          </Link>
+        </p>
       </Page>
     );
   }
 
   const list = [...(rentals ?? [])].reverse();
   return (
-    <Page title="Rentals" lede={LEDE}>
+    <Page title="Rentals" lede="Rentals paid for from this wallet. If you end one early, the time you did not use is refunded.">
       {owed !== undefined && owed > 0n && (
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-md bg-wash px-4 py-3 text-[13px]">
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-[3px] bg-plate px-4 py-3 text-[13px]">
           <span>
             <span className="tnum font-mono font-medium">{fmtEth(owed)} ETH</span> refunded and ready to withdraw.
           </span>
@@ -185,7 +189,7 @@ function RentalRow({ view }: { view: RentalView }) {
       )}
 
       {access && active && (
-        <div className="mt-4 overflow-x-auto rounded-md bg-wash px-4 py-3 font-mono text-[13px] leading-relaxed">
+        <div className="mt-4 overflow-x-auto rounded-[3px] bg-plate px-4 py-3 font-mono text-[13px] leading-relaxed">
           <div>
             <span className="select-none text-faint">$ </span>
             {access.command}

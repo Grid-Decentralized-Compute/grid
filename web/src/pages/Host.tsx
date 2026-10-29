@@ -3,28 +3,27 @@ import { parseEther } from "viem";
 import { useAccount, useChainId, useReadContract } from "wagmi";
 import { erc20Abi, gridMarketAbi, isTestToken, parseMetadata, stakeRegistryAbi, TRIAL_PERIOD_SECONDS } from "@grid/shared";
 import { SOURCE_URL } from "../lib/links";
-import { NotLive } from "../components/NotLive";
 import { Button, ErrorText, Input, linkClass, Note, Page, Section, Stat, Status } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtDate, fmtEth, fmtGrid } from "../lib/format";
 import { useNow } from "../lib/hooks";
 import { useTx } from "../lib/useTx";
 
-const LEDE = "List a machine you own and get paid in ETH for every started minute it is rented. The contract takes no fee.";
+
 
 export function Host() {
   const deployment = useDeployment();
   const { address } = useAccount();
 
   return (
-    <Page title="Host" lede={LEDE}>
-      {!deployment ? (
-        <Section title="Your machines">
-          <NotLive />
-        </Section>
-      ) : !address ? (
+    <Page title="Host" lede="Run the node on a machine you own to list it. Earnings accrue for each minute it is rented and can be withdrawn at any time. The contract takes no fee.">
+      {!address ? (
         <Section title="Your machines">
           <p className="text-muted">Connect the wallet your node runs with to see its machines, earnings and bond.</p>
+        </Section>
+      ) : !deployment ? (
+        <Section title="Your machines">
+          <p className="text-muted">No machines listed from this wallet. Start a node below and it appears here.</p>
         </Section>
       ) : (
         <Dashboard address={address} />
@@ -172,7 +171,7 @@ function RunANode() {
   return (
     <Section title="Run a node">
       <Note className="max-w-[62ch]">On the machine with the GPU, from a copy of the source:</Note>
-      <pre className="mt-4 overflow-x-auto rounded-md bg-wash px-4 py-3 font-mono text-[13px] leading-relaxed">
+      <pre className="mt-4 overflow-x-auto rounded-[3px] bg-plate px-4 py-3 font-mono text-[13px] leading-relaxed">
         <span className="select-none text-faint">$ </span>npm install{"\n"}
         <span className="select-none text-faint">$ </span>cp node/env.example node/.env{"\n"}
         <span className="select-none text-faint">$ </span>npm run node

@@ -1,11 +1,11 @@
 import { Component, type ReactNode, useEffect } from "react";
+import { Caseback } from "./components/Caseback";
 import { Wallet } from "./components/Wallet";
 import { About } from "./pages/About";
 import { Host } from "./pages/Host";
 import { Market } from "./pages/Market";
 import { Rentals } from "./pages/Rentals";
 import { Link, usePath } from "./router";
-import { SOURCE_URL } from "./lib/links";
 
 const pages: Record<string, { label: string; title: string; render: () => ReactNode }> = {
   "/": { label: "Market", title: "Grid", render: () => <Market /> },
@@ -25,9 +25,9 @@ export default function App() {
   return (
     <div className="mx-auto flex min-h-screen max-w-[1040px] flex-col px-5 sm:px-8">
       <header className="flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
-        <Link href="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
+        <Link href="/" className="flex items-center gap-2.5 font-serif text-[21px] font-normal leading-none tracking-[-0.01em]">
           <Mark />
-          grid
+          Grid
         </Link>
         <nav aria-label="Pages" className="order-last flex w-full gap-6 text-[13px] sm:order-none sm:w-auto">
           {Object.entries(pages).map(([href, p]) => (
@@ -35,7 +35,11 @@ export default function App() {
               key={href}
               href={href}
               aria-current={page === p ? "page" : undefined}
-              className={page === p ? "text-ink" : "text-muted transition-colors hover:text-ink"}
+              className={
+                page === p
+                  ? "text-ink underline decoration-steel decoration-[1.5px] underline-offset-[6px]"
+                  : "text-muted transition-colors hover:text-ink"
+              }
             >
               {p.label}
             </Link>
@@ -61,12 +65,7 @@ export default function App() {
         </ErrorBoundary>
       </main>
 
-      <footer className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line py-6 text-[12px] text-faint">
-        <span>A peer-to-peer market for compute on Robinhood Chain.</span>
-        <a href={SOURCE_URL} className="transition-colors hover:text-ink sm:ml-auto">
-          Source
-        </a>
-      </footer>
+      <Caseback />
     </div>
   );
 }
@@ -76,7 +75,7 @@ function Mark() {
     <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
       {[0, 6, 12].flatMap((y) =>
         [0, 6, 12].map((x) => (
-          <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" rx="1" fill="currentColor" opacity={x === 6 && y === 6 ? 0.3 : 1} />
+          <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" rx="1" fill={x === 6 && y === 6 ? "#1f3c78" : "currentColor"} />
         )),
       )}
     </svg>

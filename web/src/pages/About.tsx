@@ -1,89 +1,66 @@
 import type { ReactNode } from "react";
-import { SOURCE_URL } from "../lib/links";
 import { linkClass } from "../components/ui";
+import { SOURCE_URL } from "../lib/links";
 import { Link } from "../router";
 
 const Code = ({ children }: { children: ReactNode }) => (
-  <code className="rounded bg-wash px-1 py-0.5 font-mono text-[13px]">{children}</code>
+  <code className="rounded-[2px] bg-plate px-1 py-0.5 font-mono text-[13px]">{children}</code>
 );
 
 const H2 = ({ children }: { children: ReactNode }) => (
-  <h2 className="mt-14 text-[15px] font-semibold tracking-[-0.005em]">{children}</h2>
+  <h2 className="engraved mt-14 border-b border-ink/80 pb-2 text-ink">{children}</h2>
 );
 
 export function About() {
   return (
     <article className="max-w-[62ch] text-[15.5px] leading-[1.7] [&_p]:mt-4">
-      <h1 className="text-[22px] font-medium tracking-[-0.015em]">Grid</h1>
-      <p className="!mt-1 text-muted">A peer-to-peer market for compute.</p>
+      <h1 className="font-serif text-[34px] font-light leading-[1.1] tracking-[-0.01em]">Grid</h1>
+      <p className="!mt-2 text-muted">Peer-to-peer GPU rental on Robinhood Chain.</p>
 
-      <H2>Why</H2>
+      <H2>How it works</H2>
       <p>
-        Renting a GPU today means renting it from a company. The company holds your money, sets the terms and decides
-        who may sell and who may buy. Most of the machines belong to someone else anyway.
+        Grid is a marketplace contract, GridMarket, and a small program hosts run next to their GPUs. The contract keeps
+        the list of machines and holds renters' payments. Everything else happens between the renter and the host's
+        machine.
       </p>
       <p>
-        Grid removes the company. Owners list their machines in a contract, renters pay that contract, and the two
-        connect directly. There is no Grid server in the path and no fee in the contract.
+        A host's node registers the machine with <Code>listMachine</Code>, giving an hourly price in ETH and the address
+        the node can be reached at. To rent it, you call <Code>rent</Code> with the number of hours and send the ETH for
+        them. The node sees the rental on-chain, starts a container for you, and hands over the SSH login once you sign a
+        message proving the rental is yours.
       </p>
-
-      <H2>How a rental works</H2>
-      <ol className="mt-4 list-decimal space-y-3 pl-5 marker:text-faint">
-        <li>
-          A host lists a machine with <Code>listMachine</Code>: the GPU, memory, an hourly price in ETH and the https
-          address of the host's node.
-        </li>
-        <li>
-          You rent it with <Code>rent</Code>, paying for the hours you want. The ETH stays in the contract.
-        </li>
-        <li>
-          The host's node sees the rental on-chain and starts a container. You sign a message with your wallet to
-          prove the rental is yours, and the node gives you the SSH login.
-        </li>
-        <li>
-          Either side can call <Code>endRental</Code> at any time, and anyone can once the paid hours are over. The
-          host is paid for every started minute and you get the rest back. Both collect with <Code>withdraw</Code>.
-        </li>
-      </ol>
-      <p>The market contract has no owner. Nobody can pause it, change its terms or hold your funds.</p>
+      <p>
+        A rental ends when either of you calls <Code>endRental</Code>, or when anyone does after the paid hours run out.
+        The host is paid for every minute that was started and you are refunded the remainder. Both of you collect with{" "}
+        <Code>withdraw</Code>. The contract has no owner and charges no fee.
+      </p>
 
       <H2>Hosting</H2>
       <p>
-        Anyone with a machine can run a node and set their own price. For the first 30 days no bond is needed, but
-        each rental is capped at 0.01 ETH. After that a host keeps GRID bonded to stay listed.{" "}
+        Any machine that can run Docker can be listed, and the host sets the price.{" "}
         <Link href="/host" className={linkClass}>
-          Run a node
-        </Link>
+          Running a node
+        </Link>{" "}
+        takes a wallet, an https address for the node and a few minutes of setup.
       </p>
 
       <H2>GRID</H2>
       <p>
-        GRID is a bond, not a currency for compute. Hosts lock it to stay listed. It cannot be withdrawn while one of
-        the host's rentals is running, takes seven days to come back, and part of it is burned if the host is proven
-        to have cheated a renter. Compute is always paid in ETH, and renters never need GRID.
+        GRID is the bond hosts post to stay listed. It is not required for a host's first 30 days, but until a host is
+        bonded each rental is capped at 0.01 ETH. A bond cannot be withdrawn while one of the host's rentals is running,
+        takes seven days to unlock, and can be slashed if the host is shown to have cheated a renter. Rentals are always
+        paid in ETH; renters never need GRID.
       </p>
       <p>
-        GRID launches on the Creora launchpad with the Robinhood Chain launch. The whole supply goes on the bonding
-        curve. There is no team allocation.
+        GRID will launch on Creora alongside the Robinhood Chain launch, with the entire supply on the bonding curve and
+        no allocation to the team.
       </p>
-
-      <H2>Where it stands</H2>
-      <dl className="mt-4 grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-3">
-        <dt className="font-mono text-[12px] leading-[1.7rem] text-ok">done</dt>
-        <dd>The market contract, the bond registry, the host node and this app, tested end to end on a local chain.</dd>
-        <dt className="font-mono text-[12px] leading-[1.7rem] text-busy">now</dt>
-        <dd>Deploying to the Robinhood Chain testnet and running the first GPU host.</dd>
-        <dt className="font-mono text-[12px] leading-[1.7rem] text-faint">next</dt>
-        <dd>The Robinhood Chain launch, with GRID on Creora and bonded listings.</dd>
-        <dt className="font-mono text-[12px] leading-[1.7rem] text-faint">later</dt>
-        <dd>Jobs split across many hosts at once, and more than SSH inside a rental.</dd>
-      </dl>
 
       <H2>Source</H2>
       <p>
-        The contracts, the host node and this app are in one repository:{" "}
+        The contracts, the host node and this site are in{" "}
         <a className={linkClass} href={SOURCE_URL}>
-          github.com/Grid-Decentralized-Compute/grid
+          one repository
         </a>
         .
       </p>
