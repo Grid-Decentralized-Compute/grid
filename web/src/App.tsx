@@ -45,7 +45,7 @@ export default function App() {
   return (
     <div className="mx-auto flex min-h-screen max-w-[1040px] flex-col px-5 sm:px-8">
       <ErrorBoundary key="header">
-      <header className="flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
+      <header className="site-header flex flex-wrap items-center gap-x-10 gap-y-4 py-5">
         <Link href="/" className="flex items-center gap-2.5 font-serif text-[21px] font-normal leading-none tracking-[-0.01em]">
           <Mark />
           Grid
@@ -61,6 +61,7 @@ export default function App() {
               className={`nav-link transition-colors ${navActive === href ? "text-ink" : "text-muted hover:text-ink"}`}
             >
               {p.label}
+              {navActive === href && <span aria-hidden="true" className="nav-index" />}
             </Link>
           ))}
           <a href={DOCS_URL} className="nav-link text-muted transition-colors hover:text-ink">

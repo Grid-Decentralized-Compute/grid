@@ -90,5 +90,19 @@ export function Note({ children, className = "" }: { children: ReactNode; classN
   return <p className={`text-[14px] text-muted ${className}`}>{children}</p>;
 }
 
+export const Code = ({ children }: { children: ReactNode }) => (
+  <code className="rounded-[2px] bg-plate px-1 py-0.5 font-mono text-[13px]">{children}</code>
+);
+
+/** A section heading: engraved capitals over a rule. The About page draws the rule and types the letters in. */
+export function H2({ children, className = "mt-14" }: { children: ReactNode; className?: string }) {
+  return (
+    <h2 data-split className={`engraved relative pb-2 text-ink ${className}`}>
+      <span data-split-text>{children}</span>
+      <span aria-hidden="true" data-split-rule className="absolute inset-x-0 bottom-0 h-px origin-left bg-rule" />
+    </h2>
+  );
+}
+
 export const linkClass =
   "ink-link text-steel";

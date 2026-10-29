@@ -22,7 +22,7 @@ const MAX_HOURS = 720;
 const COLS =
   "sm:grid sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_7rem_6rem_4.5rem] sm:items-center sm:gap-6";
 
-const HEADLINE = "Rent GPUs from their owners.";
+const HEADLINE = "Decentralized compute network.";
 
 export type MarketMode = "direct" | "swarm";
 
@@ -46,7 +46,7 @@ export function Market({ mode }: { mode: MarketMode }) {
     <>
       <section className="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
         <div>
-          <p className="rise engraved text-steel">Decentralized compute</p>
+          <p className="rise engraved text-steel">A GPU market on Robinhood Chain</p>
           <h1 className="mt-5 text-balance font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] sm:text-[56px]">
             {HEADLINE.split(" ").map((word, i) => (
               <Fragment key={i}>
@@ -60,8 +60,9 @@ export function Market({ mode }: { mode: MarketMode }) {
             ))}
           </h1>
           <p className="rise mt-6 max-w-[56ch] text-[16px] text-muted [animation-delay:90ms]">
-            Grid has no servers of its own. The machines belong to the people who list them, the ETH is held by contracts
-            on Robinhood Chain, and nodes reach each other directly over a peer-to-peer network.
+            People with GPUs list them at a price they set. People who need compute rent a machine by the hour, or post a
+            job that runs across many of them. Grid has no servers of its own: the ETH is held by contracts on Robinhood
+            Chain, and nodes reach each other directly over a peer-to-peer network.
           </p>
           <div className="rise mt-10 [animation-delay:180ms]">
             <BlockTrack />

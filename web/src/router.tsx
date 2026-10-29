@@ -1,29 +1,37 @@
 import { type AnchorHTMLAttributes, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
+import { reducedMotion, scrollToTarget } from "./lib/motion";
 
 // A few pages need no router library: pushState plus a listener set.
 const listeners = new Set<() => void>();
 
-/** Scrolls to the element named by the URL hash, or to the top when there is none. */
+/** Jumps to the element named by the URL hash, or to the top when there is none. Call once the page has rendered. */
 export function scrollToHash() {
   let id = "";
   try {
     id = decodeURIComponent(window.location.hash.slice(1));
   } catch {
-    // a malformed #fragment: just scroll to the top
+    // a malformed #fragment: just go to the top
   }
-  // Wait a frame so the page that owns the anchor has rendered.
-  requestAnimationFrame(() => {
-    const el = id ? document.getElementById(id) : null;
-    if (el) el.scrollIntoView();
-    else window.scrollTo(0, 0);
-  });
+  scrollToTarget((id && document.getElementById(id)) || 0);
 }
 
+/**
+ * Goes to another page. The new page is rendered synchronously inside a view transition, so the
+ * browser can cross-fade from the old page to the new one and glide the navigation index between
+ * tabs (index.css). Links that switch a view in place (`scroll: false`) change without one.
+ */
 export function navigate(to: string, { scroll = true }: { scroll?: boolean } = {}) {
   if (to === window.location.pathname + window.location.hash) return;
-  window.history.pushState(null, "", to);
-  listeners.forEach((l) => l());
-  if (scroll) scrollToHash();
+  const update = () => {
+    window.history.pushState(null, "", to);
+    flushSync(() => listeners.forEach((l) => l()));
+    if (scroll) scrollToHash();
+  };
+  // Only from near the top, where the header is in view: from deep in a page the header would fly in.
+  const nearTop = window.scrollY < window.innerHeight / 4;
+  if (scroll && nearTop && "startViewTransition" in document && !reducedMotion()) document.startViewTransition(update);
+  else update();
 }
 
 export function usePath(): string {

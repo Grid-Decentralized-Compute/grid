@@ -1,15 +1,9 @@
-import type { ReactNode } from "react";
-import { linkClass } from "../components/ui";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { ProtocolStory } from "../components/ProtocolStory";
+import { H2, linkClass } from "../components/ui";
 import { DOCS_URL, SOURCE_URL } from "../lib/links";
+import { gsap, reducedMotion, SplitText } from "../lib/motion";
 import { Link } from "../router";
-
-const Code = ({ children }: { children: ReactNode }) => (
-  <code className="rounded-[2px] bg-plate px-1 py-0.5 font-mono text-[13px]">{children}</code>
-);
-
-const H2 = ({ children }: { children: ReactNode }) => (
-  <h2 className="engraved mt-14 border-b border-rule pb-2 text-ink">{children}</h2>
-);
 
 /** Who runs each part of Grid, and what happens when it stops. Keep in step with docs/decentralization.md. */
 const PARTS: { name: string; runBy: ReactNode; ifItStops: ReactNode }[] = [
@@ -45,9 +39,47 @@ const PARTS: { name: string; runBy: ReactNode; ifItStops: ReactNode }[] = [
   },
 ];
 
+/** The title's letters rise into place; each section's rule draws across and its heading types in as it arrives. */
+function useEngraving() {
+  const root = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el || reducedMotion()) return;
+    const ctx = gsap.context(() => {
+      const title = el.querySelector("h1");
+      if (title)
+        SplitText.create(title, {
+          type: "chars",
+          mask: "chars",
+          onSplit: (self) => gsap.from(self.chars, { yPercent: 118, duration: 1.2, ease: "expo.out", stagger: 0.06, delay: 0.05 }),
+        });
+      for (const h of gsap.utils.toArray<HTMLElement>("[data-split]", el)) {
+        const text = h.querySelector("[data-split-text]");
+        const rule = h.querySelector("[data-split-rule]");
+        if (!text || !rule) continue;
+        SplitText.create(text, {
+          type: "chars",
+          mask: "chars",
+          onSplit: (self) =>
+            gsap
+              .timeline({ scrollTrigger: { trigger: h, start: "top 90%", once: true } })
+              .from(rule, { scaleX: 0, duration: 1, ease: "expo.out" }, 0)
+              .from(self.chars, { yPercent: 110, duration: 0.65, ease: "expo.out", stagger: 0.022 }, 0.1),
+        });
+      }
+    }, el);
+    return () => ctx.revert();
+  }, []);
+  return root;
+}
+
+const Prose = ({ children }: { children: ReactNode }) => <div className="max-w-[62ch]">{children}</div>;
+
 export function About() {
+  const root = useEngraving();
   return (
-    <article className="max-w-[62ch] text-[15.5px] leading-[1.7] [&_p]:mt-4">
+    <article ref={root} className="text-[15.5px] leading-[1.7] [&_p]:mt-4">
+      <Prose>
       <h1 className="font-serif text-[34px] font-light leading-[1.1] tracking-[-0.01em]">Grid</h1>
       <p className="!mt-2 text-muted">Decentralized compute on Robinhood Chain.</p>
 
@@ -79,40 +111,11 @@ export function About() {
         ))}
       </dl>
 
-      <H2>Direct</H2>
-      <p>
-        A host's node registers the machine with <Code>listMachine</Code>, giving an hourly price in ETH and the address
-        the node can be reached at. To rent it, you call <Code>rent</Code> with the number of hours and send the ETH for
-        them. The node sees the rental on-chain, starts a container for you, and hands over the SSH login once you sign a
-        message proving the rental is yours.
-      </p>
-      <p>
-        A rental ends when either of you calls <Code>endRental</Code>, or when anyone does after the paid hours run out.
-        The host is paid for every minute that was started and you are refunded the remainder. Both of you collect with{" "}
-        <Code>withdraw</Code>. The contract has no owner and charges no fee.
-      </p>
-      <p>
-        A direct rental depends on one machine. If its host goes offline, the session ends with it; you pay only for the
-        minutes that were started, and anything on the machine is lost.
-      </p>
+      </Prose>
 
-      <H2>Swarm</H2>
-      <p>
-        A swarm job is a container and a list of inputs, one per task. You post it to SwarmMarket with the ETH for three
-        runs of every task. Hosts whose machines are idle claim tasks on short leases, run them, keep the output and
-        submit its hash.
-      </p>
-      <p>
-        Every task runs on two different hosts. When their hashes match, both are paid. When they differ, a third host
-        runs it: the two that agree are paid and the odd one out is recorded as a fault against its bond. A lease that
-        runs out is handed to another host, so no single machine can stall the job. When the job is done you close it and
-        the runs that were not needed come back to you.
-      </p>
-      <p>
-        Results are fetched straight from the hosts that produced them and checked against the hashes on-chain, so a
-        result shown here is one two hosts agreed on. Tasks must be deterministic, and a job's inputs are public.
-      </p>
+      <ProtocolStory />
 
+      <Prose>
       <H2>Hosting</H2>
       <p>
         Any machine that can run Docker can be listed, and the host sets the price.{" "}
@@ -153,6 +156,7 @@ export function About() {
         </a>
         .
       </p>
+      </Prose>
     </article>
   );
 }

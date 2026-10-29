@@ -1,4 +1,5 @@
 import { type PointerEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Guilloche } from "./Guilloche";
 
 /**
  * The network, drawn like an engraved plate: machines on a lattice joined by peer links, relays
@@ -174,10 +175,13 @@ export function NetworkPlate({ className = "" }: { className?: string }) {
 
   return (
     <figure className={`m-0 ${className}`}>
+      {/* The plate is engraved on a sunburst dial that turns to the light. */}
+      <div className="relative isolate">
+      <Guilloche className="absolute -inset-y-[22%] inset-x-0 -z-10 h-[144%] w-full lg:-inset-x-[16%] lg:w-[132%]" />
       <svg
         ref={svg}
         viewBox={`0 0 ${W} ${H}`}
-        className="plate block h-auto w-full cursor-crosshair touch-manipulation select-none"
+        className="plate relative block h-auto w-full cursor-crosshair touch-manipulation select-none"
         role="img"
         aria-label="The Grid network: machines joined by peer links, relays for machines behind routers, and renters' jobs running on hosts in different parts of the network."
         onPointerMove={move}
@@ -268,6 +272,7 @@ export function NetworkPlate({ className = "" }: { className?: string }) {
           <JobMark key={n} job={job} className="job once" offset="0s" />
         ))}
       </svg>
+      </div>
       <figcaption className="engraved mt-3 grid grid-cols-2 gap-x-5 gap-y-1.5 text-faint">
         <Key glyph={<circle cx={5} cy={5} r={3.6} className="fill-none stroke-ink" strokeWidth={1.2} />}>Renter</Key>
         <Key glyph={<rect x={1.5} y={1.5} width={7} height={7} rx={1.25} className="fill-steel" />}>Host at work</Key>
