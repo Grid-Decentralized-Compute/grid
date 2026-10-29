@@ -50,8 +50,9 @@ export class Chain {
       state.host.toLowerCase() === this.address.toLowerCase()
     ) {
       const id = BigInt(state.machineId);
-      const m = await this.getMachine(id);
-      if (m.host.toLowerCase() === this.address.toLowerCase()) {
+      // A reset local chain can reuse the same addresses with no machines yet: a revert here means "relist".
+      const m = await this.getMachine(id).catch(() => null);
+      if (m && m.host.toLowerCase() === this.address.toLowerCase()) {
         if (m.metadata !== metadata || m.pricePerHour !== priceWei || !m.available) {
           await this.wait(
             await this.walletClient.writeContract({
@@ -97,7 +98,9 @@ export class Chain {
     await this.wait(await this.walletClient.writeContract({ ...this.market, functionName: "endRental", args: [id] }));
   }
 
-  private wait(hash: Hash) {
-    return this.publicClient.waitForTransactionReceipt({ hash });
+  private async wait(hash: Hash) {
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted on-chain`);
+    return receipt;
   }
 }

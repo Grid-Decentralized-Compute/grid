@@ -42,8 +42,13 @@ contract GridMarket {
         Machine machine;
     }
 
-    /// @dev A host can be rented without a GRID bond for this long after their first listing.
+    /// @dev A host can be rented without a GRID bond for this long after their first listing...
     uint64 public constant TRIAL_PERIOD = 30 days;
+    /// @dev ...but while unbonded, one rental can hold at most this much ETH: a fresh wallet
+    ///      can always start a trial, so the trial caps what a cheat could take, not who may list.
+    uint256 public constant TRIAL_MAX_DEPOSIT = 0.01 ether;
+    /// @dev Upper bound on a listing's metadata so a page of listings stays cheap to read.
+    uint256 public constant MAX_METADATA = 1024;
 
     IStakeRegistry public immutable stake;
 
@@ -52,6 +57,7 @@ contract GridMarket {
     mapping(address => uint64[]) private _machinesByHost;
     mapping(address => uint64[]) private _rentalsByRenter;
     mapping(address => uint64) public hostSince; // first listing time, 0 = never listed
+    mapping(address => uint64) public activeRentalCount; // running rentals per host; StakeRegistry blocks unbonding while > 0
     mapping(address => uint256) public balances; // ETH owed, pulled with withdraw()
 
     event MachineListed(uint64 indexed machineId, address indexed host, uint96 pricePerHour, string metadata);
@@ -72,6 +78,8 @@ contract GridMarket {
     error NothingToWithdraw();
     error TransferFailed();
     error BadRange();
+    error MetadataTooLong();
+    error TrialCapExceeded();
 
     constructor(IStakeRegistry stake_) {
         stake = stake_;
@@ -81,6 +89,7 @@ contract GridMarket {
 
     function listMachine(uint96 pricePerHour, string calldata metadata) external returns (uint64 id) {
         if (pricePerHour == 0) revert ZeroPrice();
+        if (bytes(metadata).length > MAX_METADATA) revert MetadataTooLong();
         id = uint64(_machines.length);
         _machines.push(
             Machine({
@@ -101,6 +110,7 @@ contract GridMarket {
         Machine storage m = _machines[id];
         if (m.host != msg.sender) revert NotHost();
         if (pricePerHour == 0) revert ZeroPrice();
+        if (bytes(metadata).length > MAX_METADATA) revert MetadataTooLong();
         m.pricePerHour = pricePerHour;
         m.available = available;
         m.metadata = metadata;
@@ -115,7 +125,8 @@ contract GridMarket {
         if (!canRent(machineId)) revert NotRentable();
         Machine storage m = _machines[machineId];
         uint256 price = uint256(m.pricePerHour) * hoursWanted;
-        if (msg.value != price) revert WrongValue();
+        if (msg.value != price || price > type(uint128).max) revert WrongValue();
+        if (!stake.isEligible(m.host) && price > TRIAL_MAX_DEPOSIT) revert TrialCapExceeded();
 
         rentalId = uint64(_rentals.length);
         _rentals.push(
@@ -131,6 +142,7 @@ contract GridMarket {
         );
         _rentalsByRenter[msg.sender].push(rentalId);
         m.activeRental = rentalId + 1;
+        activeRentalCount[m.host] += 1;
         emit Rented(rentalId, machineId, msg.sender, hoursWanted, uint128(price));
     }
 
@@ -155,6 +167,7 @@ contract GridMarket {
 
         r.ended = true;
         m.activeRental = 0;
+        activeRentalCount[m.host] -= 1;
         balances[m.host] += cost;
         if (refund > 0) balances[r.renter] += refund;
         emit RentalEnded(rentalId, r.machineId, uint128(cost), uint128(refund));

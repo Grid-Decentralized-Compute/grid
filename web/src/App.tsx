@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, type ReactNode, useState } from "react";
 import { useChainId, useChains } from "wagmi";
 import { Wallet } from "./components/Wallet";
 import { Card } from "./components/ui";
@@ -53,9 +53,11 @@ export default function App() {
             </p>
           </Card>
         )}
-        {tab === "market" && <Market onRented={() => setTab("rentals")} />}
-        {tab === "rentals" && <Rentals />}
-        {tab === "host" && <Host />}
+        <ErrorBoundary key={tab}>
+          {tab === "market" && <Market onRented={() => setTab("rentals")} />}
+          {tab === "rentals" && <Rentals />}
+          {tab === "host" && <Host />}
+        </ErrorBoundary>
       </main>
 
       <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-zinc-600">
@@ -64,4 +66,24 @@ export default function App() {
       </footer>
     </div>
   );
+}
+
+/** Keeps one bad listing or a surprising wallet error from blanking the whole page. */
+class ErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
+  state = { message: null as string | null };
+
+  static getDerivedStateFromError(e: unknown) {
+    return { message: e instanceof Error ? e.message : String(e) };
+  }
+
+  render() {
+    if (this.state.message) {
+      return (
+        <Card className="border-red-500/40">
+          <p className="text-sm text-red-300">This page could not be displayed: {this.state.message}</p>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
 }

@@ -107,8 +107,14 @@ contract StakeRegistryTest is Test {
         stake.setSlasher(stranger);
         assertEq(stake.slasher(), stranger);
 
+        stake.setMarket(address(0xbeef));
+        assertEq(stake.market(), address(0xbeef));
+
         vm.prank(stranger);
         vm.expectRevert(StakeRegistry.NotOwner.selector);
         stake.setMinBond(1);
+        vm.prank(stranger);
+        vm.expectRevert(StakeRegistry.NotOwner.selector);
+        stake.setMarket(address(0));
     }
 }

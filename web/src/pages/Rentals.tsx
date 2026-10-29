@@ -7,6 +7,7 @@ import {
   accessMessage,
   costSoFar,
   gridMarketAbi,
+  isSecureEndpoint,
   parseMetadata,
 } from "@grid/shared";
 import { Badge, Button, Card, ErrorText, Muted, Stat } from "../components/ui";
@@ -104,6 +105,11 @@ function RentalCard({ view }: { view: RentalView }) {
   // against the renter address stored on-chain and replies with the SSH details.
   async function getAccess() {
     if (!meta) return;
+    if (!isSecureEndpoint(meta.endpoint)) {
+      // The reply carries the SSH password; never fetch it over plain http from a remote host.
+      setAccessError("This host publishes a plain http:// endpoint, so the password would travel unencrypted. Ask the host to serve https.");
+      return;
+    }
     setFetching(true);
     setAccessError(null);
     try {
@@ -137,7 +143,7 @@ function RentalCard({ view }: { view: RentalView }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="font-semibold">
-            {meta?.name ?? `Machine #${rental.machineId}`}{" "}
+            {meta?.name || `Machine #${rental.machineId}`}{" "}
             <span className="text-xs font-normal text-zinc-500">rental #{id.toString()}</span>
           </div>
           <div className="text-sm text-zinc-400">

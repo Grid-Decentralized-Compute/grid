@@ -40,6 +40,10 @@ export const isTestToken = (chainId: number) => chainId !== robinhood.id;
 
 /** Mirrors GridMarket.TRIAL_PERIOD: how long a host can be rented without a GRID bond. */
 export const TRIAL_PERIOD_SECONDS = 30 * 24 * 3600;
+/** Mirrors GridMarket.TRIAL_MAX_DEPOSIT: the most ETH one rental may hold while the host is unbonded. */
+export const TRIAL_MAX_DEPOSIT_WEI = 10_000_000_000_000_000n; // 0.01 ETH
+/** Mirrors GridMarket.MAX_METADATA: the longest metadata string a listing may carry. */
+export const MAX_METADATA_BYTES = 1024;
 
 /** What a host publishes on-chain about a machine (GridMarket.Machine.metadata, as JSON). */
 export type MachineMetadata = {
@@ -52,18 +56,67 @@ export type MachineMetadata = {
   ramGb: number;
   diskGb: number;
   os: string;
-  /** Base URL of the host node's HTTP API, e.g. https://gpu.example.com or http://1.2.3.4:7777 */
+  /**
+   * Base URL of the host node's HTTP API, e.g. https://gpu.example.com. It must be https://
+   * (plain http:// only on localhost): renters fetch their SSH password over it, and a web app
+   * served over https cannot call an http:// host at all.
+   */
   endpoint: string;
 };
 
+/**
+ * Reads a listing's metadata defensively. It is free text written by whoever listed the
+ * machine, so every field is type-checked and clipped before a page renders it.
+ */
 export function parseMetadata(json: string): MachineMetadata | null {
+  let raw: unknown;
   try {
-    const v = JSON.parse(json);
-    if (v && typeof v === "object" && typeof v.endpoint === "string") return v as MachineMetadata;
+    raw = JSON.parse(json);
   } catch {
-    // not JSON: a listing made by hand or by an older node
+    return null; // not JSON: a listing made by hand or by an older node
   }
-  return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const str = (key: string, max = 120) => (typeof o[key] === "string" ? (o[key] as string).slice(0, max) : "");
+  const num = (key: string) => {
+    const v = o[key];
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+  };
+  const endpoint = str("endpoint", 300);
+  if (!endpoint) return null;
+  return {
+    v: 1,
+    name: str("name"),
+    gpu: str("gpu"),
+    vramGb: num("vramGb"),
+    gpuCount: num("gpuCount"),
+    cpu: str("cpu"),
+    ramGb: num("ramGb"),
+    diskGb: num("diskGb"),
+    os: str("os"),
+    endpoint,
+  };
+}
+
+/** Loopback addresses may use plain http (local development). */
+export function isLoopbackHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname === "::1"
+  );
+}
+
+/** Whether renters may talk to this endpoint at all: https, or http on a loopback address. */
+export function isSecureEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === "https:" || (url.protocol === "http:" && isLoopbackHost(url.hostname));
+  } catch {
+    return false;
+  }
 }
 
 /** The message a renter signs to prove to a host that they hold a rental. */

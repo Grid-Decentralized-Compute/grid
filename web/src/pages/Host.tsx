@@ -46,7 +46,9 @@ export function Host() {
   } catch {
     wei = 0n;
   }
-  const isBonded = minBond !== undefined && bonded !== undefined && bonded >= minBond;
+  // minBond == 0 means bonding is switched off: nobody is "bonded" and nothing expires.
+  const bondingOff = minBond === 0n;
+  const isBonded = !bondingOff && minBond !== undefined && bonded !== undefined && bonded >= minBond;
   const trialEndsAt = hostSince && hostSince !== 0n ? Number(hostSince) + TRIAL_PERIOD_SECONDS : null;
   const [pendingUnbond, claimableAt] = unbond ?? [0n, 0n];
 
@@ -79,7 +81,9 @@ export function Host() {
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Your GRID bond</h2>
-          {eligible === undefined ? null : isBonded ? (
+          {eligible === undefined ? null : bondingOff ? (
+            <Badge>bonding off — every host rentable</Badge>
+          ) : isBonded ? (
             <Badge tone="good">bonded — rentable</Badge>
           ) : eligible ? (
             <Badge tone="warn">trial until {trialEndsAt ? fmtDate(trialEndsAt) : "—"}</Badge>
@@ -90,8 +94,9 @@ export function Host() {
           )}
         </div>
         <Muted>
-          Hosts lock GRID to list. The bond is never spent on anything: it waits 7 days to come back and a share of it
-          is burned only if you are proven to have cheated a renter. Your first 30 days need no bond.
+          Hosts lock GRID to list. The bond is never spent on anything: it cannot be withdrawn while one of your rentals
+          runs, waits 7 days to come back, and a share of it is burned only if you are proven to have cheated a renter.
+          Your first 30 days need no bond, with rentals capped at 0.01 ETH each until you bond.
         </Muted>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="GRID in wallet" value={gridBalance !== undefined ? fmtGrid(gridBalance) : "…"} />
@@ -142,7 +147,7 @@ export function Host() {
               return (
                 <li key={id.toString()} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                   <span>
-                    <span className="font-medium">{meta?.name ?? `Machine #${id}`}</span>{" "}
+                    <span className="font-medium">{meta?.name || `Machine #${id}`}</span>{" "}
                     <span className="text-zinc-500">#{id.toString()}</span>
                     {meta && <span className="text-zinc-400"> · {meta.gpuCount > 0 ? meta.gpu : "CPU only"}</span>}
                   </span>
@@ -170,7 +175,7 @@ export function Host() {
           on-chain. Nothing is sent through Grid: renters reach your node directly at the URL you publish.
         </Muted>
         <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-xs text-zinc-300">
-          {`cp node/.env.example node/.env   # set GRID_PRIVATE_KEY to this wallet and GRID_PUBLIC_URL to where renters reach you
+          {`cp node/env.example node/.env   # set GRID_PRIVATE_KEY to this wallet, GRID_PUBLIC_URL (https) and GRID_SSH_HOST
 npm run node`}
         </pre>
       </Card>

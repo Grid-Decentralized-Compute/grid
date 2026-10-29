@@ -2,20 +2,24 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "./interfaces/IERC20.sol";
+import {IGridMarket} from "./interfaces/IGridMarket.sol";
 import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 
 /// @title StakeRegistry — hosts bond GRID to stay rentable on Grid.
-/// @notice The bond is the only thing GRID does in the protocol: it is locked
-///         while the host is listed, takes UNBOND_DELAY to get back, and a share
-///         of it is burned if the host is proven to have defrauded a renter.
-///         Payments for compute are always ETH and never touch this contract.
+/// @notice The bond is the only thing GRID does in the protocol: it cannot start
+///         unbonding while any of the host's rentals is running, takes UNBOND_DELAY
+///         to get back, and a share of it is burned if the host is proven to have
+///         defrauded a renter. Payments for compute are always ETH and never touch
+///         this contract.
 contract StakeRegistry is IStakeRegistry {
     IERC20 public immutable grid;
 
-    /// @dev Sets minBond and the slasher. Meant to be a multisig.
+    /// @dev Sets minBond, the slasher and the market. Meant to be a multisig.
     address public owner;
     /// @dev May burn bonds. Meant to be the 3-of-5 Slasher multisig.
     address public slasher;
+    /// @dev The GridMarket whose running rentals keep a bond locked. address(0) = no such check.
+    address public market;
     /// @dev GRID (in wei) a host needs bonded to be eligible. 0 switches bonding off.
     uint256 public minBond;
 
@@ -37,6 +41,7 @@ contract StakeRegistry is IStakeRegistry {
     event MinBondSet(uint256 minBond);
     event SlasherSet(address slasher);
     event OwnerSet(address owner);
+    event MarketSet(address market);
 
     error NotOwner();
     error NotSlasher();
@@ -45,6 +50,7 @@ contract StakeRegistry is IStakeRegistry {
     error NothingClaimable();
     error BpsTooHigh();
     error TransferFailed();
+    error RentalsActive();
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -77,11 +83,14 @@ contract StakeRegistry is IStakeRegistry {
         _bond(host, amount);
     }
 
-    /// @notice Start getting `amount` of your bond back. Claimable after UNBOND_DELAY;
-    ///         adding to a pending unbond restarts the clock for the whole amount.
+    /// @notice Start getting `amount` of your bond back. Not while one of your rentals is
+    ///         running, so the bond still backs every rental it was shown for. Claimable
+    ///         after UNBOND_DELAY; adding to a pending unbond restarts the clock for the
+    ///         whole amount.
     function startUnbond(uint256 amount) external {
         if (amount == 0) revert ZeroAmount();
         if (bonded[msg.sender] < amount) revert InsufficientBond();
+        if (market != address(0) && IGridMarket(market).activeRentalCount(msg.sender) != 0) revert RentalsActive();
         bonded[msg.sender] -= amount;
         Unbond storage u = unbonds[msg.sender];
         u.amount += amount;
@@ -129,6 +138,13 @@ contract StakeRegistry is IStakeRegistry {
     function setOwner(address owner_) external onlyOwner {
         owner = owner_;
         emit OwnerSet(owner_);
+    }
+
+    /// @notice Points the registry at the GridMarket whose rentals lock bonds (set once after deployment,
+    ///         since the market takes this registry in its constructor).
+    function setMarket(address market_) external onlyOwner {
+        market = market_;
+        emit MarketSet(market_);
     }
 
     // ---------------------------------------------------------------- internal

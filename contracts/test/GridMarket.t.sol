@@ -24,6 +24,7 @@ contract GridMarketTest is Test {
         grid = new MockGRID();
         stake = new StakeRegistry(IERC20(address(grid)), MIN_BOND);
         market = new GridMarket(IStakeRegistry(address(stake)));
+        stake.setMarket(address(market));
         vm.deal(renter, 10 ether);
         vm.deal(stranger, 1 ether);
         vm.warp(1_700_000_000);
@@ -37,6 +38,60 @@ contract GridMarketTest is Test {
     function _rent(uint64 machineId, uint64 hoursWanted) internal returns (uint64 rid) {
         vm.prank(renter);
         rid = market.rent{value: uint256(PRICE) * hoursWanted}(machineId, hoursWanted);
+    }
+
+    function _bondHost() internal {
+        grid.mint(host, MIN_BOND);
+        vm.startPrank(host);
+        grid.approve(address(stake), MIN_BOND);
+        stake.bond(MIN_BOND);
+        vm.stopPrank();
+    }
+
+    function test_metadataTooLongReverts() public {
+        string memory big = new string(1025);
+        vm.prank(host);
+        vm.expectRevert(GridMarket.MetadataTooLong.selector);
+        market.listMachine(PRICE, big);
+    }
+
+    function test_unbondedHostCappedPerRental() public {
+        uint64 id = _list(); // in trial, nothing bonded: 9 h at PRICE is 0.0108 ETH, over the 0.01 ETH cap
+        vm.prank(renter);
+        vm.expectRevert(GridMarket.TrialCapExceeded.selector);
+        market.rent{value: uint256(PRICE) * 9}(id, 9);
+        _rent(id, 8); // 0.0096 ETH fits
+    }
+
+    function test_bondedHostHasNoRentalCap() public {
+        uint64 id = _list();
+        _bondHost();
+        _rent(id, 100);
+    }
+
+    function test_activeRentalCountFollowsRentals() public {
+        uint64 id = _list();
+        assertEq(market.activeRentalCount(host), 0);
+        uint64 rid = _rent(id, 1);
+        assertEq(market.activeRentalCount(host), 1);
+        vm.prank(renter);
+        market.endRental(rid);
+        assertEq(market.activeRentalCount(host), 0);
+    }
+
+    function test_cannotUnbondWhileRentalRuns() public {
+        uint64 id = _list();
+        _bondHost();
+        uint64 rid = _rent(id, 1);
+        vm.prank(host);
+        vm.expectRevert(StakeRegistry.RentalsActive.selector);
+        stake.startUnbond(MIN_BOND);
+
+        vm.prank(renter);
+        market.endRental(rid);
+        vm.prank(host);
+        stake.startUnbond(MIN_BOND);
+        assertEq(stake.bonded(host), 0);
     }
 
     function test_listMachine() public {
@@ -188,11 +243,7 @@ contract GridMarketTest is Test {
         assertFalse(market.canRent(id));
         assertFalse(market.hostEligible(host));
 
-        grid.mint(host, MIN_BOND);
-        vm.startPrank(host);
-        grid.approve(address(stake), MIN_BOND);
-        stake.bond(MIN_BOND);
-        vm.stopPrank();
+        _bondHost();
 
         assertTrue(market.hostEligible(host));
         assertTrue(market.canRent(id));
