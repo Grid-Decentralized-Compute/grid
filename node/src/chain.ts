@@ -95,14 +95,17 @@ export class Chain {
   /**
    * Sends a contract write from the host wallet and waits for it to succeed. The gas estimate gets
    * 25% headroom: several hosts writing to the same contract in one block can each cost a little
-   * more than the estimate made a moment earlier.
+   * more than the estimate made a moment earlier. `reserve` adds a fixed amount on top for calls
+   * whose cost depends on what other hosts do first (a swarm submit that lands second has to
+   * settle every task it touches). Only gas actually used is paid for.
    */
-  async send(call: { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] }) {
+  async send(call: { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] }, reserve = 0n) {
     const request = { ...call, account: this.account } as Parameters<Chain["publicClient"]["estimateContractGas"]>[0];
     const gas = await this.publicClient.estimateContractGas(request);
+    const headroom = (gas * 5n) / 4n;
     const hash = await this.walletClient.writeContract({
       ...(request as Parameters<Chain["walletClient"]["writeContract"]>[0]),
-      gas: (gas * 5n) / 4n,
+      gas: headroom > gas + reserve ? headroom : gas + reserve,
     });
     return this.wait(hash);
   }

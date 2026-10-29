@@ -22,6 +22,11 @@ const RECENT_JOBS = 25;
 
 type Claim = { task: number; slot: number; leaseEnd: number };
 
+/** Gas set aside per submitted task for settling it, in case the other replica lands first. */
+const SETTLE_GAS_PER_TASK = 120_000n;
+/** A submit that keeps failing on-chain is given up after this many tries. */
+const MAX_SUBMIT_TRIES = 5;
+
 /**
  * Swarm mode: while the machine is not rented, take tasks from open jobs, run them, keep the
  * outputs for the renter to fetch and submit their hashes. Each round is: find a job with work
@@ -33,6 +38,8 @@ export class SwarmWorker {
   private readonly cursors = new Map<bigint, number>();
   private readonly resultsDir: string;
   private warnedBond = false;
+  /** Results computed but not yet accepted on-chain, oldest first. */
+  private readonly unsent: { jobId: bigint; tasks: number[]; hashes: `0x${string}`[]; tries: number }[] = [];
 
   constructor(
     private readonly config: Config,
@@ -71,6 +78,9 @@ export class SwarmWorker {
   /** One round of work. Returns true when tasks were run. */
   async round(): Promise<boolean> {
     if (!this.endpoint) return false;
+    // Results from an earlier round come first: until they are on-chain the host is unpaid and
+    // the renter's job waits on them.
+    if (this.unsent.length > 0) return this.flush();
     const pick = await this.findWork();
     if (!pick) return false;
     const { jobId, tasks, manifest } = pick;
@@ -93,10 +103,43 @@ export class SwarmWorker {
       hashes.push(resultHash(output));
     }
     if (done.length > 0) {
-      await this.chain.send({ ...this.swarm, functionName: "submit", args: [jobId, done, hashes] });
-      log(`swarm: job ${jobId} — submitted ${done.length} result(s)`);
+      this.unsent.push({ jobId, tasks: done, hashes, tries: 0 });
+      await this.flush();
     }
     return done.length > 0;
+  }
+
+  /**
+   * Submits queued results. A submit that fails on-chain stays queued and is retried next round,
+   * with a fresh gas estimate; one the contract refuses outright (the job was closed) is dropped.
+   */
+  private async flush(): Promise<boolean> {
+    let sent = false;
+    while (this.unsent.length > 0) {
+      const batch = this.unsent[0];
+      const call = { ...this.swarm, functionName: "submit", args: [batch.jobId, batch.tasks, batch.hashes] } as const;
+      try {
+        await this.chain.publicClient.simulateContract({ ...call, account: this.chain.address });
+      } catch (e) {
+        this.unsent.shift();
+        log(`swarm: job ${batch.jobId} — dropped ${batch.tasks.length} result(s) the contract no longer takes (${(e as Error).message.split("\n")[0]})`);
+        continue;
+      }
+      try {
+        await this.chain.send(call, SETTLE_GAS_PER_TASK * BigInt(batch.tasks.length));
+      } catch (e) {
+        batch.tries++;
+        if (batch.tries >= MAX_SUBMIT_TRIES) {
+          this.unsent.shift();
+          log(`swarm: job ${batch.jobId} — gave up submitting ${batch.tasks.length} result(s) after ${batch.tries} tries`);
+        }
+        throw e;
+      }
+      this.unsent.shift();
+      log(`swarm: job ${batch.jobId} — submitted ${batch.tasks.length} result(s)${batch.tries ? ` (try ${batch.tries + 1})` : ""}`);
+      sent = true;
+    }
+    return sent;
   }
 
   /** The output this host produced for a task, if it ran it. */
