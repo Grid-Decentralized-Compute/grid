@@ -50,7 +50,7 @@ A node without a public address keeps a connection to a relay (`GRID_RELAY=1`) a
 `<relay>/p2p/<peer id>` as its address; the relay forwards renters' requests to it over
 `/grid/http/1.0.0`. Such nodes take swarm work only, since their SSH port cannot be reached.
 
-Full documentation: [docs/](docs/README.md) (GitBook format).
+Documentation: [grid-compute.gitbook.io/docs](https://grid-compute.gitbook.io/docs), published from [docs/](docs/README.md) by GitBook Git Sync.
 
 ## Layout
 
@@ -59,7 +59,7 @@ Full documentation: [docs/](docs/README.md) (GitBook format).
 | `contracts/`       | `GridMarket` (direct rentals), `SwarmMarket` (swarm jobs), `StakeRegistry` (GRID bonds), `MockGRID`   | Foundry            |
 | `node/`            | Host daemon: direct rentals, swarm tasks when idle, libp2p peer and relay, HTTP API                    | Node 22+, libp2p   |
 | `web/`             | The whole site at one URL: market (direct /, swarm /swarm, /jobs/:id), rentals, host, about, legal   | Vite, React, wagmi |
-| `docs/`            | Documentation in GitBook format (`.gitbook.yaml`, `SUMMARY.md`)                                        | Markdown           |
+| `docs/`            | Documentation, synced to GitBook (`gitbook-docs.yaml`, `SUMMARY.md`)                                      | Markdown           |
 | `packages/shared/` | Chain definitions, generated ABIs and addresses, wire types shared by web and node                     | TypeScript         |
 
 `packages/shared/src/generated/` is committed so a checkout without Foundry can still type-check,
