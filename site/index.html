@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grid — rent GPUs straight from the people who own them</title>
+    <meta
+      name="description"
+      content="Grid is a compute market with no company in the middle. Hosts list their machines on Robinhood Chain, renters pay ETH into a contract and get SSH access from the host directly, billed by the minute."
+    />
+    <meta property="og:title" content="Grid — decentralized compute" />
+    <meta property="og:description" content="Rent GPUs straight from the people who own them. Paid in ETH on Robinhood Chain, billed by the minute, no company in between." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <a class="brand" href="#" aria-label="Grid home">
+        <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+          <rect x="1" y="1" width="5" height="5" rx="1" />
+          <rect x="7.5" y="1" width="5" height="5" rx="1" />
+          <rect x="14" y="1" width="5" height="5" rx="1" />
+          <rect x="1" y="7.5" width="5" height="5" rx="1" />
+          <rect class="lit" x="7.5" y="7.5" width="5" height="5" rx="1" />
+          <rect x="14" y="7.5" width="5" height="5" rx="1" />
+          <rect x="1" y="14" width="5" height="5" rx="1" />
+          <rect x="7.5" y="14" width="5" height="5" rx="1" />
+          <rect class="lit" x="14" y="14" width="5" height="5" rx="1" />
+        </svg>
+        Grid
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#how">How it works</a>
+        <a href="#hosts">Hosts</a>
+        <a href="#coin">GRID</a>
+        <a href="#status">Status</a>
+      </nav>
+      <a class="button button-primary top-cta" href="https://grid-5y8.pages.dev/">Open the market</a>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Decentralized compute · Robinhood Chain</p>
+          <h1>Rent GPUs straight from the people who own them.</h1>
+          <p class="lede">
+            Grid is a compute market with no company in the middle. Hosts list their machines on-chain, you pay ETH into a
+            contract, and the host hands you SSH access directly. Billed by the minute; whatever you don't use comes back.
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="https://grid-5y8.pages.dev/">Open the market</a>
+            <a class="button button-secondary" href="#hosts">Run a host</a>
+          </div>
+          <dl class="facts">
+            <div><dt>Payment</dt><dd>ETH, held in escrow</dd></div>
+            <div><dt>Billing</dt><dd>Per started minute</dd></div>
+            <div><dt>Platform cut</dt><dd>None in the contract</dd></div>
+          </dl>
+        </div>
+        <figure class="field-wrap">
+          <div class="field" id="field" aria-hidden="true"></div>
+          <figcaption>Every square is a machine someone owns. Copper ones are rented right now.</figcaption>
+        </figure>
+      </section>
+
+      <section id="how" class="section">
+        <h2>How a rental works</h2>
+        <p class="section-lede">Three contract calls. Nothing else sits between you and the machine.</p>
+        <ol class="steps">
+          <li>
+            <span class="step-call">listMachine()</span>
+            <h3>A host lists a machine</h3>
+            <p>GPU, memory, price per hour and the address of their node go on-chain. The host's own computer serves the rental; Grid stores nothing.</p>
+          </li>
+          <li>
+            <span class="step-call">rent()</span>
+            <h3>You pay the contract, not the host</h3>
+            <p>You pick the hours you want and send the ETH to the market contract. The host's node sees the rental and starts your container.</p>
+          </li>
+          <li>
+            <span class="step-call">endRental()</span>
+            <h3>Stop whenever you like</h3>
+            <p>End the rental yourself, or let it run out. The contract pays the host for every started minute and refunds you the rest.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="why" class="section">
+        <h2>What changes when nobody is in the middle</h2>
+        <table class="compare">
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col">A rental platform</th>
+              <th scope="col">Grid</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Your money</th>
+              <td>Held by the company</td>
+              <td>Held by a contract until the rental ends</td>
+            </tr>
+            <tr>
+              <th scope="row">Billing</th>
+              <td>By the hour, up front</td>
+              <td>By the minute, unused time refunded</td>
+            </tr>
+            <tr>
+              <th scope="row">Access</th>
+              <td>Through the platform's servers</td>
+              <td>Straight from the host's machine</td>
+            </tr>
+            <tr>
+              <th scope="row">Who can list</th>
+              <td>Approved providers</td>
+              <td>Anyone, with a bond after a 30-day trial</td>
+            </tr>
+            <tr>
+              <th scope="row">Who can switch it off</th>
+              <td>The company</td>
+              <td>Nobody. Hosts pause their own machines, that's all</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="hosts" class="section section-split">
+        <div>
+          <h2>Run a host</h2>
+          <p class="section-lede">Earn ETH from a GPU that would otherwise sit idle.</p>
+          <ul class="plain">
+            <li>You set the price per hour and are paid for every started minute, withdrawable any time.</li>
+            <li>Each rental runs in its own container on your machine. Renters get SSH, nothing more.</li>
+            <li>Your first 30 days need no bond, with rentals capped at 0.01 ETH each. After that you lock GRID to stay listed.</li>
+            <li>Stopping the node pauses your listing. A running rental's container stays up until it ends.</li>
+          </ul>
+        </div>
+        <div class="terminal" aria-label="Commands to start a host">
+          <span class="terminal-title">Linux · Windows · macOS</span>
+          <pre><code><span class="prompt">$</span> git clone https://github.com/Grid-Decentralized-Compute/grid
+<span class="prompt">$</span> cp node/env.example node/.env
+<span class="prompt">$</span> npm run node
+<span class="out">listed as machine #12, reachable at https://gpu.example.com</span></code></pre>
+        </div>
+      </section>
+
+      <section id="coin" class="section">
+        <h2>GRID, the coin</h2>
+        <p class="section-lede">It does one thing.</p>
+        <div class="trio">
+          <div>
+            <h3>It is the host bond</h3>
+            <p>Hosts lock GRID to stay listed. The bond is never spent: it waits seven days to come back, and part of it is burned only if a host is proven to have cheated a renter.</p>
+          </div>
+          <div>
+            <h3>It is never a payment</h3>
+            <p>Compute is paid in ETH, always. GRID buys nothing on Grid and is not needed to rent.</p>
+          </div>
+          <div>
+            <h3>It launches on Creora</h3>
+            <p>With the Robinhood Chain launch, on the Creora launchpad. The whole supply goes on the curve; there is no team allocation.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="status" class="section">
+        <h2>Where it stands</h2>
+        <ul class="timeline">
+          <li class="done"><span>Built</span>The market contract, the GRID bond registry, the host node and the web app, tested end to end on a local chain.</li>
+          <li class="now"><span>Now</span>Deploying to the Robinhood Chain testnet and running the first real GPU host.</li>
+          <li><span>Next</span>The Robinhood Chain launch, with GRID on Creora and bonded listings.</li>
+          <li><span>Later</span>Swarm jobs: one job spread across many hosts at once, and more than SSH inside a rental.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>Grid is a protocol nobody operates. Listings and payments live in contracts on Robinhood Chain; access comes straight from each host.</p>
+      <nav aria-label="Links">
+        <a href="https://grid-5y8.pages.dev/">Open the market</a>
+        <a href="https://github.com/Grid-Decentralized-Compute/grid">Source</a>
+      </nav>
+    </footer>
+
+    <script>
+      // The field: 12 x 8 machines, a few rented (copper). One rental starts or ends every few seconds.
+      (function () {
+        const field = document.getElementById("field");
+        if (!field) return;
+        const total = 96;
+        const tiles = [];
+        for (let i = 0; i < total; i++) {
+          const t = document.createElement("i");
+          field.appendChild(t);
+          tiles.push(t);
+        }
+        // Deterministic start so the page looks the same on every load.
+        [3, 9, 17, 26, 31, 44, 52, 58, 67, 73, 85, 90].forEach((i) => tiles[i].classList.add("on"));
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduced) return;
+        let seed = 7;
+        const rand = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+        setInterval(() => {
+          const t = tiles[Math.floor(rand() * total)];
+          t.classList.toggle("on");
+        }, 2600);
+      })();
+    </script>
+  </body>
+</html>

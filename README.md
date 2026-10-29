@@ -31,6 +31,7 @@ the money on-chain. Swarm jobs (one job spread over many peers) come later on to
 | `node/`            | Host daemon: lists the machine, serves `/health` and `/access`, runs the SSH container, settles rentals | Node 22+, viem     |
 | `web/`             | Market, My rentals and Host pages; talks to the chain and to host nodes directly                       | Vite, React, wagmi |
 | `packages/shared/` | Chain definitions, generated ABIs and addresses, wire types shared by web and node                     | TypeScript         |
+| `site/`            | The public landing page (static HTML + CSS, no build step); `npm run site` serves it locally           | HTML, CSS          |
 
 `packages/shared/src/generated/` is committed so a checkout without Foundry can still type-check,
 build the web and run the node; `npm run contracts:build` regenerates it after a contract change.

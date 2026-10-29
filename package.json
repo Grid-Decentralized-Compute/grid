@@ -18,6 +18,7 @@
     "deploy:testnet": "npm run deploy:testnet -w contracts",
     "node": "npm run start -w grid-node",
     "web": "npm run dev -w web",
+    "site": "vite site --port 5175",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "engines": {
