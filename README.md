@@ -104,7 +104,7 @@ npm run node
 Two things must be reachable from the internet:
 
 - **The HTTP API on `GRID_PORT`** (7777), published as `GRID_PUBLIC_URL`. It must be `https://`:
-  renters fetch their SSH password over it, and the web app, served over https, cannot call an
+  renters hand over their SSH key and get the machine's host keys over it, and the web app, served over https, cannot call an
   http:// host at all. A Cloudflare Tunnel or a Tailscale Funnel in front of port 7777 gives you
   that; `GRID_ALLOW_HTTP=1` disables the check for experiments only.
 - **The SSH port `GRID_SSH_PORT`** (2222) as raw TCP on `GRID_SSH_HOST`. HTTPS tunnels do not carry

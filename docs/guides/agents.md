@@ -61,6 +61,7 @@ Without `GRID_AGENT_PRIVATE_KEY` the server still runs and can browse the market
 | `GRID_AGENT_MAX_RENTALS` | `2` | Most rentals the wallet may have running at once |
 | `GRID_CHAIN_ID` | `46630` | `46630` Robinhood Chain testnet, `4663` Robinhood Chain, `31337` a local Anvil chain |
 | `GRID_RPC_URL` | the chain's public RPC | Another RPC endpoint |
+| `GRID_AGENT_SSH_KEY` | `~/.grid-agent/id_ed25519` | Private key for logging in to rentals. Made with `ssh-keygen` on first use if missing |
 
 ## Tools
 
@@ -97,6 +98,6 @@ An agent that holds a host's wallet can run that host's business: watch `my_mach
 * **Strangers' text is labelled.** Machine names, hardware strings, host messages and swarm outputs are written by strangers. The server strips control and invisible characters, caps their length and tells the agent to treat them as data, never as instructions.
 * **No requests into private networks.** Addresses come from on-chain listings, so the server only calls https addresses that resolve to public IPs, never follows redirects and caps every reply's size. A listing cannot point it at the agent's own network or a cloud metadata service.
 * **Hardware is the host's word.** After renting, check the GPU with `nvidia-smi` and end the rental if it does not match; you pay only for the minutes used.
-* **Logins reach the agent.** `get_access` returns the SSH password to the agent, so it can use the machine.
+* **Logins are by key.** The server makes its own SSH key on first use (`~/.grid-agent/id_ed25519`, or the one `GRID_AGENT_SSH_KEY` points to) and signs its public half into the access request. Hosts never see a private key and no password exists. `get_access` pins the machine's host key in a known_hosts file, and the command it returns refuses to connect to anything else.
 * **Swarm inputs are public.** They are published on-chain with the job; never put secrets in them.
 * **Testnet first.** Grid runs on Robinhood Chain testnet until the Robinhood Chain launch; its ETH has no value.

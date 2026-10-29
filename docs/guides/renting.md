@@ -6,8 +6,9 @@ A direct rental gives you one whole machine with an SSH login, billed by the min
 
 1. Connect a wallet holding ETH on Robinhood Chain.
 2. On the market, pick a machine marked **Available**, choose the hours and confirm. The ETH for those hours is sent to `GridMarket`, which holds it.
-3. Under **Rentals**, choose **Get SSH access**. Your wallet signs a short message; the host's node checks it against the renter recorded on-chain and returns a login for a container started for you.
-4. End the rental whenever you like. The host is paid for every minute that was started; the rest becomes your balance in the contract. Choose **Withdraw** to collect it.
+3. Under **Rentals**, paste your SSH public key once (the line in `~/.ssh/id_ed25519.pub`; make one with `ssh-keygen -t ed25519` if you have none), then choose **Get SSH access**. Your wallet signs a short message that includes the key; the host's node checks it against the renter recorded on-chain, lets your key into the container started for you, and returns the SSH command with the machine's host key fingerprint.
+4. Connect with that command. On first connect your SSH client shows the machine's fingerprint: it must match the one on the page. Logins are by key only; there is no password to leak.
+5. End the rental whenever you like. The host is paid for every minute that was started; the rest becomes your balance in the contract. Choose **Withdraw** to collect it.
 
 ## Good to know
 

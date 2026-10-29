@@ -15,6 +15,7 @@ import { Button, ErrorText, linkClass, Page, Stat, Status } from "../components/
 import { useDeployment } from "../contracts";
 import { fmtDate, fmtDuration, fmtEth, shortError } from "../lib/format";
 import { useNow } from "../lib/hooks";
+import { useFingerprint, useSshKey } from "../lib/sshKey";
 import { useTx } from "../lib/useTx";
 import { Link } from "../router";
 
@@ -41,6 +42,7 @@ export function Rentals() {
     query: { enabled, refetchInterval: 5_000 },
   });
   const tx = useTx();
+  const [sshText, setSshText, sshKey] = useSshKey();
 
   if (!address) {
     return (
@@ -65,6 +67,7 @@ export function Rentals() {
   const list = [...(rentals ?? [])].reverse();
   return (
     <Page title="Rentals" lede="Rentals paid for from this wallet. If you end one early, the time you did not use is refunded.">
+      {list.some((v) => !v.rental.ended) && <SshKeyField text={sshText} onChange={setSshText} sshKey={sshKey} />}
       {owed !== undefined && owed > 0n && (
         <div className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-[3px] bg-plate px-4 py-3 text-[13px]">
           <span>
@@ -95,14 +98,14 @@ export function Rentals() {
             </Link>
           </p>
         ) : (
-          list.map((view) => <RentalRow key={view.id.toString()} view={view} />)
+          list.map((view) => <RentalRow key={view.id.toString()} view={view} sshKey={sshKey} />)
         )}
       </div>
     </Page>
   );
 }
 
-function RentalRow({ view }: { view: RentalView }) {
+function RentalRow({ view, sshKey }: { view: RentalView; sshKey: string | null }) {
   const { id, rental, machine } = view;
   const meta = parseMetadata(machine.metadata);
   const now = useNow();
@@ -119,13 +122,17 @@ function RentalRow({ view }: { view: RentalView }) {
   const expired = now >= endsAt;
   const cost = active ? costSoFar(rental, now) : null;
 
-  // Proves to the host that this wallet holds the rental; the host checks the signature
-  // against the renter address stored on-chain and replies with the SSH details.
+  // Proves to the host that this wallet holds the rental and hands it the renter's SSH public key,
+  // inside the signed message; the host checks the signature against the renter stored on-chain,
+  // lets the key in and replies with the machine's host keys. No password exists.
   async function getAccess() {
     if (!meta) return;
+    if (!sshKey) {
+      setAccessError("Add your SSH public key above first.");
+      return;
+    }
     if (!isSecureEndpoint(meta.endpoint)) {
-      // The reply carries the SSH password; never fetch it over plain http from a remote host.
-      setAccessError("This host publishes a plain http address, so the password would travel unencrypted.");
+      setAccessError("This host publishes a plain http address, so its reply could be tampered with on the way.");
       return;
     }
     setFetching(true);
@@ -133,8 +140,10 @@ function RentalRow({ view }: { view: RentalView }) {
     try {
       const ts = Math.floor(Date.now() / 1000);
       // The message names this chain and market, so the signature is useless anywhere else.
-      const sig = await signMessageAsync({ message: accessMessage({ chainId, market: deployment.GridMarket, rentalId: id, ts }) });
-      const body: AccessRequest = { ts, sig };
+      const sig = await signMessageAsync({
+        message: accessMessage({ chainId, market: deployment.GridMarket, rentalId: id, ts, sshKey }),
+      });
+      const body: AccessRequest = { ts, sig, key: sshKey };
       const res = await fetch(`${meta.endpoint}/access/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,7 +199,7 @@ function RentalRow({ view }: { view: RentalView }) {
 
       {active && (
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button onClick={getAccess} disabled={fetching || !meta}>
+          <Button onClick={getAccess} disabled={fetching || !meta || !sshKey}>
             {fetching ? "Waiting for signature…" : access ? "Refresh SSH access" : "Get SSH access"}
           </Button>
           <Button variant="danger" onClick={end} disabled={!!tx.pending}>
@@ -205,15 +214,64 @@ function RentalRow({ view }: { view: RentalView }) {
             <span className="select-none text-faint">$ </span>
             {access.command}
           </div>
-          <div>
-            <span className="select-none text-faint">password </span>
-            {access.password}
+          {access.hostKeys.map((k) => (
+            <HostKey key={k} hostKey={k} />
+          ))}
+          <div className="text-faint">
+            {access.hostKeys.length > 0
+              ? "On first connect your SSH client shows the machine's fingerprint; it must match the one above."
+              : "This host sent no host key, so check the fingerprint carefully on first connect."}
           </div>
           <div className="text-faint">access ends {fmtDate(access.endsAt)}</div>
         </div>
       )}
       <ErrorText className="mt-3">{accessError}</ErrorText>
       <ErrorText className="mt-3">{tx.error}</ErrorText>
+    </div>
+  );
+}
+
+/** Where the renter gives the SSH public key their rentals let in. */
+function SshKeyField({ text, onChange, sshKey }: { text: string; onChange: (v: string) => void; sshKey: string | null }) {
+  const fp = useFingerprint(sshKey);
+  return (
+    <div className="mb-10">
+      <label htmlFor="ssh-key" className="engraved text-faint">
+        Your SSH public key
+      </label>
+      <input
+        id="ssh-key"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        autoComplete="off"
+        placeholder="ssh-ed25519 AAAA…  (the contents of ~/.ssh/id_ed25519.pub)"
+        className="mt-2 block w-full rounded-[3px] border border-line bg-dial px-3 py-2 font-mono text-[13px] outline-none transition-colors focus:border-steel"
+      />
+      <p className="mt-2 text-[13px] text-muted">
+        {sshKey && fp ? (
+          <>
+            Rentals will let in <span className="font-mono text-ink">{fp}</span>. Logins are by key only; there is no password.
+          </>
+        ) : text.trim() ? (
+          "That is not an SSH public key. Paste the one line from the .pub file, never the private key."
+        ) : (
+          <>
+            No key yet? Run <code className="rounded-[2px] bg-plate px-1 font-mono">ssh-keygen -t ed25519</code> and paste the contents of{" "}
+            <code className="rounded-[2px] bg-plate px-1 font-mono">~/.ssh/id_ed25519.pub</code>.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function HostKey({ hostKey }: { hostKey: string }) {
+  const fp = useFingerprint(hostKey);
+  return (
+    <div>
+      <span className="select-none text-faint">host key </span>
+      {fp ?? "…"}
     </div>
   );
 }

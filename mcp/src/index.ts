@@ -5,6 +5,7 @@
 //   GRID_AGENT_MAX_SPEND    most ETH one transaction may carry (default 0.02)
 //   GRID_CHAIN_ID           46630 Robinhood Chain testnet (default), 4663 Robinhood Chain, 31337 local
 //   GRID_RPC_URL            optional RPC override
+//   GRID_AGENT_SSH_KEY      private key for logging in to rentals (default ~/.grid-agent/id_ed25519, made on first use)
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -14,7 +15,8 @@ const INSTRUCTIONS = `Grid is a decentralized GPU market on Robinhood Chain. Mac
 payments are ETH held by contracts, and this server's wallet signs every transaction itself.
 
 To run something on one GPU: find_gpus or list_machines, then rent_machine (pays for whole hours up front, unused
-time is refunded), then get_access for the SSH login. Run your work over SSH, then end_rental and withdraw the refund.
+time is refunded), then get_access for the SSH command. Logins are by key: this server has its own SSH key and pins the
+machine's host key, so use the command exactly as returned. Run your work over SSH, then end_rental and withdraw the refund.
 
 To run many independent tasks (rendering frames, batch inference, transcoding): post_swarm_job with a container
 image, a command that reads one task's input on stdin and writes its result to stdout, and one input per task.
@@ -149,7 +151,7 @@ server.registerTool(
   {
     title: "Get SSH access",
     description:
-      "Signs a message proving this wallet holds the rental and fetches the SSH login from the host's node. Waits while the container starts.",
+      "Signs a message proving this wallet holds the rental, hands the host this server's SSH public key and returns the SSH command, with the machine's host key pinned. Waits while the container starts.",
     inputSchema: { rentalId: id("Rental id from rent_machine or my_rentals") },
     annotations: read,
   },

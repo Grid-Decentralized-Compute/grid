@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import os from "node:os";
 import { promisify } from "node:util";
-import type { AccessInfo } from "@grid/shared";
+import { type AccessInfo, normalizeSshKey, sshCommand } from "@grid/shared";
 import type { Config } from "./config";
 import { log } from "./log";
 
@@ -30,8 +29,6 @@ export function dockerEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv
   return { ...Object.fromEntries(keep.filter((k) => process.env[k]).map((k) => [k, process.env[k]!])), ...extra };
 }
 
-/** Removes the SSH password from any text that might be logged. */
-export const redact = (text: string) => text.replace(/USER_PASSWORD=\S+/g, "USER_PASSWORD=***");
 
 /**
  * One SSH container per rental. In simulated mode nothing is started and the
@@ -118,24 +115,22 @@ export class SessionManager {
     const host = this.config.sshHost;
     const port = this.config.sshPort;
     const user = "grid";
-    let password = randomBytes(12).toString("base64url");
     let containerId: string | null = null;
 
     if (this.docker) {
       const name = containerName(rentalId);
-      // A node restart in the middle of a rental must not wipe the renter's work:
-      // reuse the running container and its password instead of recreating it.
+      // A node restart in the middle of a rental must not wipe the renter's work: reuse the
+      // running container (and the keys already in it) instead of recreating it.
       const running = await this.inspect(name);
       if (running) {
-        containerId = running.id;
-        password = running.password;
+        containerId = running;
         log(`adopted running container ${name}`);
       } else {
         await run("docker", ["rm", "-f", name], { env: dockerEnv() }).catch(() => {});
         // The renter is root inside the container; these limits keep them from taking the host
         // down with it (memory, processes, CPU, logs), and the isolated network keeps them off
-        // the host's LAN. The password reaches docker through its environment, not argv, so it
-        // never shows in `ps` or in an error message.
+        // the host's LAN. Logins are by SSH key only: there is no password anywhere, and the
+        // renter's key is added when they ask for access (authorize).
         const memMb = Math.max(1024, Math.floor((os.totalmem() * 0.8) / 2 ** 20));
         const args = [
           "run", "-d", "--name", name,
@@ -149,14 +144,12 @@ export class SessionManager {
           "--log-driver", "local", "--log-opt", "max-size=20m", "--log-opt", "max-file=2",
           ...(this.isolatedNetwork ? ["--network", RENTAL_NETWORK] : []),
           "-e", "PUID=1000", "-e", "PGID=1000",
-          "-e", `USER_NAME=${user}`, "-e", "USER_PASSWORD",
-          "-e", "PASSWORD_ACCESS=true", "-e", "SUDO_ACCESS=true",
+          "-e", `USER_NAME=${user}`,
+          "-e", "PASSWORD_ACCESS=false", "-e", "SUDO_ACCESS=true",
         ];
         if (gpu) args.push("--gpus", "all");
         args.push(this.config.dockerImage);
-        const { stdout } = await run("docker", args, { env: dockerEnv({ USER_PASSWORD: password }) }).catch((e: Error) => {
-          throw new Error(redact(e.message));
-        });
+        const { stdout } = await run("docker", args, { env: dockerEnv() });
         containerId = stdout.trim();
         log(`started container ${name} (${containerId.slice(0, 12)})`);
       }
@@ -172,13 +165,55 @@ export class SessionManager {
         host,
         port,
         user,
-        password,
-        command: `ssh -p ${port} ${user}@${host}`,
+        hostKeys: [],
+        command: sshCommand({ host, port, user }),
         endsAt,
       },
     };
     this.sessions.set(rentalId, session);
     return session;
+  }
+
+  /**
+   * Lets a renter's SSH public key into the rental's container and returns the container's SSH
+   * host keys, for the renter's client to check it reached the real machine. Keys are added, never
+   * duplicated, at most 10 per rental (a renter may log in from several places). Null while the
+   * container is still starting. In simulated mode there is no container: nothing to add.
+   */
+  async authorize(rentalId: bigint, key: string): Promise<string[] | null> {
+    const session = this.sessions.get(rentalId);
+    if (!session) return null;
+    const clean = normalizeSshKey(key);
+    if (!clean) throw new Error("not an SSH public key");
+    if (!this.docker || !session.containerId) return [];
+    // The user's real home comes from /etc/passwd: images may set HOME to /root for everyone.
+    const add = [
+      "umask 077",
+      `h="$(awk -F: -v u="$(id -un)" '$1==u{print $6}' /etc/passwd)"`,
+      `[ -n "$h" ] || exit 4`,
+      `mkdir -p "$h/.ssh"`,
+      `f="$h/.ssh/authorized_keys"`,
+      `touch "$f"`,
+      `grep -qxF "$GRID_KEY" "$f" && exit 0`,
+      `[ "$(wc -l < "$f")" -lt 10 ] || exit 3`,
+      `printf '%s\\n' "$GRID_KEY" >> "$f"`,
+    ].join("; ");
+    try {
+      // The key reaches the container through the environment, never through the shell text.
+      await run("docker", ["exec", "-u", session.access.user, "-e", "GRID_KEY", session.containerId, "sh", "-c", add], {
+        env: dockerEnv({ GRID_KEY: clean }),
+      });
+      const { stdout } = await run(
+        "docker",
+        ["exec", session.containerId, "sh", "-c", "cat /etc/ssh/ssh_host_*_key.pub /config/ssh_host_keys/ssh_host_*_key.pub 2>/dev/null; true"],
+        { env: dockerEnv() },
+      );
+      const hostKeys = stdout.split("\n").map(normalizeSshKey).filter((k): k is string => k !== null).slice(0, 4);
+      return hostKeys.length > 0 ? hostKeys : null;
+    } catch (e) {
+      if ((e as { code?: number }).code === 3) throw new Error("this rental already has 10 SSH keys");
+      return null; // the container (or its user) is not up yet
+    }
   }
 
   /** Tears the rental's container down. */
@@ -201,15 +236,12 @@ export class SessionManager {
     for (const id of [...this.sessions.keys()]) await this.stop(id);
   }
 
-  private async inspect(name: string): Promise<{ id: string; password: string } | null> {
+  /** The id of the container by that name when it is running, else null. */
+  private async inspect(name: string): Promise<string | null> {
     try {
-      const { stdout } = await run("docker", [
-        "inspect", "--format", "{{.State.Running}} {{.Id}}{{range .Config.Env}}\n{{.}}{{end}}", name,
-      ], { env: dockerEnv() });
-      const [first, ...env] = stdout.split("\n");
-      const [running, id] = first.trim().split(" ");
-      const password = env.map((l) => l.trim()).find((l) => l.startsWith("USER_PASSWORD="))?.slice("USER_PASSWORD=".length);
-      return running === "true" && id && password ? { id, password } : null;
+      const { stdout } = await run("docker", ["inspect", "--format", "{{.State.Running}} {{.Id}}", name], { env: dockerEnv() });
+      const [running, id] = stdout.trim().split(" ");
+      return running === "true" && id ? id : null;
     } catch {
       return null;
     }

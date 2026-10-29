@@ -181,52 +181,75 @@ export function isSecureEndpoint(endpoint: string): boolean {
 }
 
 /**
- * The message a renter signs to prove to a host that they hold a rental. It names the chain and
- * the market, so a signature made for one deployment can never be replayed against another.
+ * The message a renter signs to prove to a host that they hold a rental and to hand it the SSH
+ * public key to let in. It names the chain and the market, so a signature made for one
+ * deployment can never be replayed against another, and it includes the key, so nobody between
+ * the renter and the host (a relay, a tunnel, a proxy) can swap in a key of their own.
  */
-export const accessMessage = (a: { chainId: number; market: string; rentalId: bigint | number | string; ts: number }) =>
-  `grid-access\nchain:${a.chainId}\nmarket:${a.market.toLowerCase()}\nrental:${a.rentalId}\nts:${a.ts}`;
+export const accessMessage = (a: { chainId: number; market: string; rentalId: bigint | number | string; ts: number; sshKey: string }) =>
+  `grid-access\nchain:${a.chainId}\nmarket:${a.market.toLowerCase()}\nrental:${a.rentalId}\nssh-key:${a.sshKey}\nts:${a.ts}`;
 
 /** How long a signed access message stays valid, in seconds, either side of the host's clock. */
 export const ACCESS_MESSAGE_TTL_SECONDS = 120;
 
-/** Body of POST <endpoint>/access/:rentalId */
-export type AccessRequest = { ts: number; sig: `0x${string}` };
+/** Body of POST <endpoint>/access/:rentalId. `key` is the renter's SSH public key, as normalizeSshKey returns it. */
+export type AccessRequest = { ts: number; sig: `0x${string}`; key: string };
 
-/** Reply of POST <endpoint>/access/:rentalId once the rental's container is up. */
+/**
+ * Reply of POST <endpoint>/access/:rentalId once the renter's key is installed. There is no
+ * password: logins are by key only. `hostKeys` are the container's SSH host public keys, so the
+ * renter's SSH client can check it reached the real machine.
+ */
 export type AccessInfo = {
   rentalId: string;
   host: string;
   port: number;
   user: string;
-  password: string;
+  hostKeys: string[];
   command: string;
   endsAt: number;
 };
 
+const SSH_KEY = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) ([A-Za-z0-9+/]{40,4096}={0,3})$/;
+
+/**
+ * An OpenSSH public key reduced to "<type> <base64>", or null when it is not one. The comment is
+ * dropped: it is often the owner's user and machine name, which has no business on a host.
+ */
+export function normalizeSshKey(line: string): string | null {
+  const parts = line.trim().split(/\s+/);
+  const key = parts.length >= 2 ? `${parts[0]} ${parts[1]}` : "";
+  return SSH_KEY.test(key) ? key : null;
+}
+
 /**
  * Checks a host's reply to POST /access field by field. The host is a stranger: only a plain host
- * name or IP, a port, a Unix user name and a printable password are accepted, and the SSH command
+ * name or IP, a port, a Unix user name and well-formed host keys are accepted, and the SSH command
  * is rebuilt from them (see sshCommand) instead of taken from the reply, so a host cannot slip
  * options such as ProxyCommand into what a person or an agent runs.
  */
 export function parseAccessInfo(raw: unknown): AccessInfo | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
+  const hostKeys = Array.isArray(o.hostKeys) ? o.hostKeys.slice(0, 4).map((k) => (typeof k === "string" ? normalizeSshKey(k) : null)) : [];
   const ok =
     typeof o.host === "string" && /^[A-Za-z0-9.:-]{1,253}$/.test(o.host) && !o.host.startsWith("-") &&
     Number.isInteger(o.port) && (o.port as number) >= 1 && (o.port as number) <= 65535 &&
     typeof o.user === "string" && /^[a-z_][a-z0-9_-]{0,31}$/.test(o.user) &&
-    typeof o.password === "string" && /^[\x21-\x7e]{1,128}$/.test(o.password) &&
+    hostKeys.every((k) => k !== null) &&
     Number.isInteger(o.endsAt);
   if (!ok) return null;
-  const a = { rentalId: String(o.rentalId ?? ""), host: o.host as string, port: o.port as number, user: o.user as string, password: o.password as string, endsAt: o.endsAt as number };
+  const a = { rentalId: String(o.rentalId ?? "").slice(0, 32), host: o.host as string, port: o.port as number, user: o.user as string, hostKeys: hostKeys as string[], endsAt: o.endsAt as number };
   return { ...a, command: sshCommand(a) };
 }
 
 /** The SSH command for a rental, built only from validated fields. */
 export const sshCommand = (a: { host: string; port: number; user: string }) =>
   `ssh -p ${a.port} ${a.user}@${a.host.includes(":") ? `[${a.host}]` : a.host}`;
+
+/** A known_hosts line for a rental's host keys, so SSH refuses an impostor instead of asking. */
+export const knownHostsLine = (a: { host: string; port: number }, hostKey: string) =>
+  `${a.port === 22 ? a.host : `[${a.host}]:${a.port}`} ${hostKey}`;
 
 /** Reply of GET <endpoint>/health. */
 export type HealthInfo = {

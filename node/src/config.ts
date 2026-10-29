@@ -86,11 +86,11 @@ export function loadConfig(): Config {
       throw new Error(`GRID_PUBLIC_URL is not a URL: ${publicUrl}`);
     }
   }
-  // The SSH password is fetched over this URL, and a web app served over https cannot even
+  // Renters hand over their SSH key and get the host keys over this URL, and a web app served over https cannot even
   // call an http:// host, so outside local development the endpoint has to be https.
   if (publicUrl && !isSecureEndpoint(publicUrl) && chainId !== 31337 && process.env.GRID_ALLOW_HTTP !== "1") {
     throw new Error(
-      `GRID_PUBLIC_URL must be https:// (put a Cloudflare tunnel, Tailscale Funnel or a reverse proxy with a certificate in front of port ${port}); set GRID_ALLOW_HTTP=1 only to accept that renters' passwords travel unencrypted`,
+      `GRID_PUBLIC_URL must be https:// (put a Cloudflare tunnel, Tailscale Funnel or a reverse proxy with a certificate in front of port ${port}); set GRID_ALLOW_HTTP=1 only to accept that access requests travel unencrypted`,
     );
   }
 

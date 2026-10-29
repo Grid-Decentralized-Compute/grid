@@ -16,7 +16,7 @@ export function useNow(intervalMs = 1000): number {
 
 /**
  * True when this page could not talk to the host at all: a page served over https may
- * only call https (or loopback) endpoints, and the SSH password travels over that call.
+ * only call https (or loopback) endpoints, and the access request (signed key, host keys) travels over that call.
  */
 export function endpointBlocked(endpoint: string | undefined): boolean {
   if (!endpoint) return false;

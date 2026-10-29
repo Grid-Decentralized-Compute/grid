@@ -3,6 +3,7 @@ import { verifyMessage } from "viem";
 import {
   ACCESS_MESSAGE_TTL_SECONDS,
   accessMessage,
+  normalizeSshKey,
   type AccessRequest,
   type HealthInfo,
   type PeersInfo,
@@ -42,7 +43,7 @@ const MAX_BODY = 10_000;
  *
  *   GET  /health                     liveness + what this machine is
  *   GET  /peers                      peers heard on the network in the last minute
- *   POST /access/:rentalId           { ts, sig } signed by the renter -> SSH details
+ *   POST /access/:rentalId           { ts, sig, key } signed by the renter -> host keys
  *   GET  /results/:swarm/:job/:task  output of a swarm task this host ran (the renter checks
  *                                    it against the hash on-chain, so it needs no auth)
  *   *    /p2p/:peer/<route>          relays only: the same routes, answered by that peer
@@ -147,11 +148,14 @@ function router({ machineId, name, version, chain, sessions, swarm, p2p, chainId
         return json(400, { error: "body must be JSON" });
       }
       const { ts, sig } = parsed;
+      const sshKey = typeof parsed.key === "string" ? normalizeSshKey(parsed.key) : null;
       if (!Number.isInteger(ts) || typeof sig !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(sig)) {
-        return json(400, { error: "body must be { ts, sig }" });
+        return json(400, { error: "body must be { ts, sig, key }" });
       }
+      if (!sshKey) return json(400, { error: "key must be an SSH public key, such as the contents of ~/.ssh/id_ed25519.pub" });
       if (Math.abs(Date.now() / 1000 - ts!) > ACCESS_MESSAGE_TTL_SECONDS) return json(401, { error: "signature expired" });
-      const message = accessMessage({ chainId, market, rentalId, ts: ts! });
+      // The key is part of what the renter signed, so nobody in between can swap in their own.
+      const message = accessMessage({ chainId, market, rentalId, ts: ts!, sshKey });
       const signedBy = (address: `0x${string}`) =>
         verifyMessage({ address, message, signature: sig as `0x${string}` }).catch(() => false);
 
@@ -159,7 +163,9 @@ function router({ machineId, name, version, chain, sessions, swarm, p2p, chainId
       const session = sessions.get(rentalId);
       if (session) {
         if (!(await signedBy(session.renter))) return json(401, { error: "signature does not match the renter" });
-        return json(200, session.access);
+        const hostKeys = await sessions.authorize(rentalId, sshKey);
+        if (hostKeys === null) return json(409, { error: "session is starting, retry in a few seconds" });
+        return json(200, { ...session.access, hostKeys });
       }
 
       const rental = await chain.getRental(rentalId);
@@ -175,8 +181,8 @@ function router({ machineId, name, version, chain, sessions, swarm, p2p, chainId
 
 /**
  * Forwards a renter's request to a peer over libp2p. Only public, read-only routes are passed on.
- * POST /access is not: a relay reads everything it forwards, and that reply carries an SSH
- * password. Peers behind a relay take swarm work only, so they never have a rental to open.
+ * POST /access is not: it opens a renter's machine, which only a node reachable on its own address
+ * should do. Peers behind a relay take swarm work only, so they never have a rental to open.
  */
 async function gateway(p2p: P2P, peer: string, req: WireRequest): Promise<WireResponse> {
   const allowed = req.method === "GET" && /^\/(health|peers|results\/0x[0-9a-fA-F]{40}\/\d+\/\d+)$/.test(req.path);

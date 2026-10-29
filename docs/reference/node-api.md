@@ -22,23 +22,26 @@ Peers heard on the network in the last minute.
 
 ### `POST /access/:rentalId`
 
-The SSH login for a direct rental. The body is `{ "ts": <unix seconds>, "sig": "0x…" }`, where `sig` is the renter wallet's signature (EIP-191) of
+Lets the renter's SSH key into a direct rental. Logins are by key only: no password exists. The body is `{ "ts": <unix seconds>, "sig": "0x…", "key": "ssh-ed25519 AAAA…" }`, where `key` is the renter's SSH public key (type and base64, no comment) and `sig` is the renter wallet's signature (EIP-191) of
 
 ```
 grid-access
 chain:<chain id>
 market:<GridMarket address, lowercase>
 rental:<rentalId>
+ssh-key:<key>
 ts:<ts>
 ```
 
-made within two minutes of the node's clock. Naming the chain and market means a signature cannot be replayed against another deployment. The node checks it against the renter recorded on-chain, allows 30 attempts a minute per client, and never answers with internal error details. Relays do not forward this route: a relay reads what it forwards, and the reply carries the password.
+made within two minutes of the node's clock. Naming the chain and market means a signature cannot be replayed against another deployment, and signing the key means nobody between the renter and the node can swap in a key of their own. The node checks the signature against the renter recorded on-chain, adds the key to the rental's `authorized_keys` (at most 10 keys per rental), allows 30 attempts a minute per client and never answers with internal error details. Relays do not forward this route.
 
-Clients must check the reply field by field and build the SSH command themselves from `host`, `port` and `user` (`parseAccessInfo` and `sshCommand` in `@grid/shared` do both).
+The reply carries the container's SSH host keys, so the renter's client can check it reached the real machine. Clients must check the reply field by field and build the SSH command themselves from `host`, `port` and `user` (`parseAccessInfo`, `sshCommand` and `knownHostsLine` in `@grid/shared`).
 
 ```json
-{ "rentalId": "0", "host": "gpu.example.com", "port": 2222, "user": "grid", "password": "…", "command": "ssh -p 2222 grid@gpu.example.com", "endsAt": 1793296805 }
+{ "rentalId": "0", "host": "gpu.example.com", "port": 2222, "user": "grid", "hostKeys": ["ssh-ed25519 AAAA…"], "command": "ssh -p 2222 grid@gpu.example.com", "endsAt": 1793296805 }
 ```
+
+A 409 means the container is still starting; try again a few seconds later.
 
 ### `GET /results/:swarm/:job/:task`
 

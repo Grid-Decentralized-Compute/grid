@@ -7,6 +7,8 @@ import {
   encodeManifest,
   gpuModel,
   gridMarketAbi,
+  knownHostsLine,
+  normalizeSshKey,
   isPrivateHost,
   isSecureEndpoint,
   MAX_MANIFEST_BYTES,
@@ -35,8 +37,13 @@ import {
   zeroHash,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { execFile } from "node:child_process";
 import { lookup } from "node:dns/promises";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { isIP } from "node:net";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 /** A user-facing problem: the message is shown to the agent as is. */
 export class GridError extends Error {}
@@ -54,6 +61,8 @@ export type Config = {
   maxTotal: bigint;
   /** Most rentals this wallet may have running at once. */
   maxRentals: number;
+  /** Private key the agent logs in to rentals with; its public half (.pub) is what hosts let in. */
+  sshKeyPath: string;
 };
 
 export function configFromEnv(env = process.env): Config {
@@ -66,6 +75,7 @@ export function configFromEnv(env = process.env): Config {
     maxSpend: parseEther(env.GRID_AGENT_MAX_SPEND ?? "0.02"),
     maxTotal: parseEther(env.GRID_AGENT_MAX_TOTAL ?? "0.1"),
     maxRentals: Number(env.GRID_AGENT_MAX_RENTALS ?? 2),
+    sshKeyPath: env.GRID_AGENT_SSH_KEY || join(homedir(), ".grid-agent", "id_ed25519"),
   };
 }
 
@@ -105,6 +115,7 @@ export class Grid {
   /** What this server has spent recently, for the rolling 24-hour budget. */
   private readonly spent: { at: number; wei: bigint }[] = [];
   private readonly local: boolean;
+  private readonly sshKeyPath: string;
 
   constructor(config: Config) {
     const chain = chainById(config.chainId);
@@ -122,6 +133,7 @@ export class Grid {
     this.maxTotal = config.maxTotal;
     this.maxRentals = config.maxRentals;
     this.local = config.chainId === 31337;
+    this.sshKeyPath = config.sshKeyPath;
     const transport = http(config.rpcUrl);
     this.client = createPublicClient({ chain, transport });
     this.account = config.privateKey ? privateKeyToAccount(config.privateKey) : null;
@@ -319,7 +331,32 @@ export class Grid {
   }
 
   /** Proves to the host's node that this wallet holds the rental, and returns the SSH login. */
-  async access(rentalId: bigint): Promise<AccessInfo> {
+  /**
+   * The agent's SSH public key, made with ssh-keygen on first use. Its private half stays on this
+   * machine; hosts only ever see the public key.
+   */
+  private async sshPublicKey(): Promise<string> {
+    const pub = `${this.sshKeyPath}.pub`;
+    if (!existsSync(pub)) {
+      if (existsSync(this.sshKeyPath)) throw new GridError(`${this.sshKeyPath} exists without its .pub file; set GRID_AGENT_SSH_KEY to a key pair.`);
+      mkdirSync(dirname(this.sshKeyPath), { recursive: true, mode: 0o700 });
+      try {
+        await promisify(execFile)("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "grid-agent", "-f", this.sshKeyPath]);
+      } catch {
+        throw new GridError("Could not create an SSH key: install OpenSSH (ssh-keygen) or set GRID_AGENT_SSH_KEY to an existing key.");
+      }
+    }
+    const key = normalizeSshKey(readFileSync(pub, "utf8"));
+    if (!key) throw new GridError(`${pub} is not an SSH public key.`);
+    return key;
+  }
+
+  /**
+   * Proves this wallet holds the rental and hands the host the agent's SSH public key, inside the
+   * signed message. The host lets the key in and returns the machine's host keys, which are pinned
+   * in a known_hosts file so SSH refuses an impostor. Logins are by key only; no password exists.
+   */
+  async access(rentalId: bigint): Promise<AccessInfo & { identityFile: string; knownHostsFile: string }> {
     const { account } = this.me();
     const view = await this.client.readContract({ address: this.market, abi: gridMarketAbi, functionName: "getRental", args: [rentalId] });
     if (view.renter.toLowerCase() !== account.address.toLowerCase()) throw new GridError(`Rental ${rentalId} belongs to another wallet.`);
@@ -327,17 +364,18 @@ export class Grid {
     const machine = await this.client.readContract({ address: this.market, abi: gridMarketAbi, functionName: "getMachine", args: [view.machineId] });
     const meta = parseMetadata(machine.metadata);
     if (!meta) throw new GridError("The machine's listing has no node address.");
-    if (!isSecureEndpoint(meta.endpoint)) throw new GridError("The machine's node address is not https, so the password cannot be fetched safely.");
+    if (!isSecureEndpoint(meta.endpoint)) throw new GridError("The machine's node address is not https, so access cannot be requested safely.");
+    const sshKey = await this.sshPublicKey();
     // The node answers 409 while it is still starting the container; give up after 90 seconds.
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       const ts = Math.floor(Date.now() / 1000);
-      const message = accessMessage({ chainId: this.chainId, market: this.market, rentalId, ts });
+      const message = accessMessage({ chainId: this.chainId, market: this.market, rentalId, ts, sshKey });
       const sig = await account.signMessage({ message });
       const res = await this.safeFetch(`${meta.endpoint}/access/${rentalId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ts, sig }),
+        body: JSON.stringify({ ts, sig, key: sshKey }),
         maxBytes: 8192,
         timeoutMs: 10_000,
       });
@@ -350,7 +388,13 @@ export class Grid {
       if (res.ok) {
         const info = parseAccessInfo(body);
         if (!info) throw new GridError("The host sent access details in a form Grid does not accept.");
-        return info;
+        const knownHostsFile = join(dirname(this.sshKeyPath), `known_hosts_rental_${rentalId}`);
+        writeFileSync(knownHostsFile, info.hostKeys.map((k) => knownHostsLine(info, k)).join("\n") + "\n", { mode: 0o600 });
+        const pin = info.hostKeys.length > 0 ? "yes" : "accept-new";
+        const command =
+          `ssh -i "${this.sshKeyPath}" -o IdentitiesOnly=yes -o UserKnownHostsFile="${knownHostsFile}" ` +
+          `-o StrictHostKeyChecking=${pin} -p ${info.port} ${info.user}@${info.host.includes(":") ? `[${info.host}]` : info.host}`;
+        return { ...info, command, identityFile: this.sshKeyPath, knownHostsFile };
       }
       if (res.status !== 409) {
         const said = (body as { error?: unknown } | null)?.error;
