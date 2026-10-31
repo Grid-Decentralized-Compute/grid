@@ -44,6 +44,10 @@ export const TRIAL_PERIOD_SECONDS = 30 * 24 * 3600;
 export const TRIAL_MAX_DEPOSIT_WEI = 10_000_000_000_000_000n; // 0.01 ETH
 /** Mirrors GridMarket.MAX_METADATA: the longest metadata string a listing may carry. */
 export const MAX_METADATA_BYTES = 1024;
+/** The protocol fee taken from the host's side of every payment, in basis points (2%). */
+export const PROTOCOL_FEE_BPS = 200;
+/** The reduced fee for a host that holds a GRID bond, in basis points (1%). */
+export const BONDED_FEE_BPS = 100;
 
 /** What a host publishes on-chain about a machine (GridMarket.Machine.metadata, as JSON). */
 export type MachineMetadata = {

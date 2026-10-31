@@ -56,7 +56,7 @@ export function Rentals() {
       <Page title="Rentals" lede="Rentals paid for from this wallet. If you end one early, the time you did not use is refunded.">
         <p className="border-t border-line py-8 text-muted">
           No rentals yet.{" "}
-          <Link href="/" className={linkClass}>
+          <Link href="/direct" className={linkClass}>
             Find a machine
           </Link>
         </p>
@@ -93,7 +93,7 @@ export function Rentals() {
         ) : list.length === 0 ? (
           <p className="py-8 text-muted">
             No rentals yet.{" "}
-            <Link href="/" className={linkClass}>
+            <Link href="/direct" className={linkClass}>
               Find a machine
             </Link>
           </p>

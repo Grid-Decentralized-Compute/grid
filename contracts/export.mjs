@@ -15,6 +15,8 @@ const contracts = {
   swarmMarketAbi: "SwarmMarket",
   stakeRegistryAbi: "StakeRegistry",
   erc20Abi: "MockGRID",
+  allowanceAbi: "Allowance",
+  allowanceFactoryAbi: "AllowanceFactory",
 };
 let abiTs = header;
 for (const [name, file] of Object.entries(contracts)) {
@@ -41,6 +43,8 @@ writeFileSync(
       "  GridMarket: `0x${string}`;",
       "  /** Absent on deployments made before swarm jobs existed. */",
       "  SwarmMarket?: `0x${string}`;",
+      "  /** Absent on deployments made before compute allowances existed. */",
+      "  AllowanceFactory?: `0x${string}`;",
       "};",
       "",
     ].join("\n") +

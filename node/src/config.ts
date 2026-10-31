@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
-import { type Address, isAddress, parseEther } from "viem";
+import { type Address, formatEther, isAddress, parseEther } from "viem";
 import { chainById, deployments, type GridChain, isSecureEndpoint } from "@grid/shared";
+import { parseSchedule, type Schedule } from "./schedule";
 
 export type Config = {
   chain: GridChain;
@@ -48,6 +49,16 @@ export type Config = {
   allowPrivatePeers: boolean;
   /** Hours a swarm job's outputs are kept for renters to fetch before they are deleted. */
   swarmKeepHours: number;
+  /** When the machine is on offer (GRID_HOURS and GRID_DAYS, local time). null = always. */
+  schedule: Schedule | null;
+  /** Lower the direct-rental price and the swarm minimum price step by step while the machine sits idle. */
+  autoPrice: boolean;
+  /** Percent taken off a price for every idle hour. */
+  priceStepPercent: number;
+  /** The direct-rental price never drops below this (wei per hour). */
+  priceFloorWei: bigint;
+  /** The swarm minimum price never drops below this (wei per run). */
+  swarmMinPriceFloorWei: bigint;
 };
 
 /** anvil account #1 — the default host on a local chain (account #0 deploys, #2 and #3 are the web's dev wallets). */
@@ -102,6 +113,25 @@ export function loadConfig(): Config {
   const simulate: Config["simulate"] =
     simulateEnv === undefined || simulateEnv === "" ? "auto" : simulateEnv === "1" || simulateEnv === "true";
 
+  const pricePerHourWei = parseEther(env("GRID_PRICE_PER_HOUR", "0.001"));
+  const swarmMinPriceWei = parseEther(env("GRID_SWARM_MIN_PRICE", "0"));
+  // Self-pricing: each floor defaults to half of the price it protects.
+  const autoPrice = process.env.GRID_AUTO_PRICE === "1";
+  const priceStepPercent = Number(env("GRID_PRICE_STEP", "3"));
+  const priceFloorWei = parseEther(env("GRID_PRICE_FLOOR", formatEther(pricePerHourWei / 2n)));
+  const swarmMinPriceFloorWei = parseEther(env("GRID_SWARM_MIN_PRICE_FLOOR", formatEther(swarmMinPriceWei / 2n)));
+  if (autoPrice) {
+    if (!(priceStepPercent >= 0 && priceStepPercent <= 100)) {
+      throw new Error(`GRID_PRICE_STEP is a percentage from 0 to 100, got "${process.env.GRID_PRICE_STEP}"`);
+    }
+    if (priceFloorWei === 0n || priceFloorWei > pricePerHourWei) {
+      throw new Error("GRID_PRICE_FLOOR must be above zero and not above GRID_PRICE_PER_HOUR");
+    }
+    if (swarmMinPriceFloorWei > swarmMinPriceWei) {
+      throw new Error("GRID_SWARM_MIN_PRICE_FLOOR must not be above GRID_SWARM_MIN_PRICE");
+    }
+  }
+
   return {
     chain,
     rpcUrl: env("GRID_RPC_URL", chain.rpcUrls.default.http[0]),
@@ -110,7 +140,7 @@ export function loadConfig(): Config {
     stake,
     // Never the computer's hostname by default: it is published on-chain and often carries a name.
     name: env("GRID_NAME", "grid-host"),
-    pricePerHourWei: parseEther(env("GRID_PRICE_PER_HOUR", "0.001")),
+    pricePerHourWei,
     port,
     publicUrl,
     sshHost: env("GRID_SSH_HOST", url?.hostname ?? ""),
@@ -120,7 +150,7 @@ export function loadConfig(): Config {
     stateDir: resolve(env("GRID_STATE_DIR", ".grid")),
     pollMs: Number(env("GRID_POLL_SECONDS", "5")) * 1000,
     swarm: swarmAddress(deployment?.SwarmMarket),
-    swarmMinPriceWei: parseEther(env("GRID_SWARM_MIN_PRICE", "0")),
+    swarmMinPriceWei,
     swarmBatch: Math.min(32, Math.max(1, Number(env("GRID_SWARM_BATCH", "4")))),
     swarmNetwork: process.env.GRID_SWARM_NETWORK === "1",
     swarmCheat: process.env.GRID_SWARM_CHEAT === "1",
@@ -131,6 +161,11 @@ export function loadConfig(): Config {
     bindHost: env("GRID_BIND", "0.0.0.0"),
     allowPrivatePeers: chainId === 31337 || process.env.GRID_ALLOW_PRIVATE_PEERS === "1",
     swarmKeepHours: Math.max(1, Number(env("GRID_SWARM_KEEP_HOURS", "72"))),
+    schedule: parseSchedule(process.env.GRID_HOURS, process.env.GRID_DAYS),
+    autoPrice,
+    priceStepPercent,
+    priceFloorWei,
+    swarmMinPriceFloorWei,
   };
 }
 

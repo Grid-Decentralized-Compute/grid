@@ -1,21 +1,33 @@
 # Grid
 
-Decentralized compute network. Hosts run a node next to their GPUs; renters pay ETH into contracts
-on Robinhood Chain and work with the hosts' machines directly; hosts bond GRID to stay listed. No Grid
-server sits in between. There are two ways to rent:
+Decentralized compute network on Robinhood Chain.
 
-- **Direct**: one whole machine with an SSH login, billed per started minute (like Vast.ai or RunPod).
+Trustless batch compute has been tried for fifteen years and never worked, because the buyer had to
+be a human holding a token nobody wanted. Grid is built for a different buyer: an AI agent holding
+ETH. It posts a job, idle GPUs across the network run it, every task on two machines that have to
+agree before anyone is paid, and it pays for nothing else. Hosts run a node next to their GPUs, the
+ETH is held by contracts on Robinhood Chain, hosts bond GRID to stay listed, and no Grid server sits
+in between. There are two ways to rent:
+
 - **Swarm**: one job split into independent tasks and spread across many hosts at once. Every task
-  runs on two hosts and is paid only when their outputs match; a third host breaks ties.
+  runs on two hosts and is paid only when their outputs match; a third host breaks ties. Each
+  finished task has an on-chain receipt.
+- **Direct**: one whole machine with an SSH login, billed per started minute. Kept for people who
+  want a machine to themselves; the site leads with swarm.
+
+Hosts pay a fixed protocol fee of 2% of what they earn, 1% while bonded, written into the contracts.
+Renters pay the listed price.
 
 **Site:** [gridcompute.net](https://gridcompute.net) · **Docs:** [grid-compute.gitbook.io/docs](https://grid-compute.gitbook.io/docs) · **X:** [@Grid_Compute](https://x.com/Grid_Compute)
 
 ## AI agents
 
-`mcp/` is an MCP server that gives AI agents Grid as tools: find free GPUs, rent one and get the SSH
-login, run swarm jobs and collect checked outputs, and run the host side of a machine, all from a
-wallet with a per-transaction spending limit. `npm run mcp:build` writes `mcp/dist/grid-mcp.mjs`;
-setup for Claude Code and other clients is in [Grid for AI agents](docs/guides/agents.md).
+`mcp/` is an MCP server that gives AI agents Grid as tools: find free GPUs, run a batch job with
+`run_batch` and get back outputs two hosts agreed on with a receipt for each, and run the host side
+of a machine, all from a wallet with a per-transaction spending limit. A company can fund an agent
+through a compute allowance (`contracts/src/Allowance.sol`): a daily cap, allowed contracts only,
+refunds kept out of the agent's reach. The same package has a command line, `grid run`.
+`npm run mcp:build` writes both bundles; setup is in [Grid for AI agents](docs/guides/agents.md).
 
 ## Direct rental
 

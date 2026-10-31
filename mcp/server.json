@@ -1,0 +1,87 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Grid-Decentralized-Compute/grid",
+  "title": "Grid",
+  "description": "Run batch jobs on a decentralized GPU market. Two hosts run every task; pay only when they agree.",
+  "version": "0.1.0",
+  "websiteUrl": "https://gridcompute.net",
+  "repository": {
+    "url": "https://github.com/Grid-Decentralized-Compute/grid",
+    "source": "github",
+    "subfolder": "mcp"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "grid-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GRID_AGENT_PRIVATE_KEY",
+          "description": "Wallet key the agent spends from, 0x followed by 64 hex digits. Fund it with only what the agent may spend. Without it the server can only browse the market.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "GRID_AGENT_ALLOWANCE",
+          "description": "Address of a compute allowance contract. Every payment to the markets is then sent through it, within its daily cap.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GRID_AGENT_MAX_SPEND",
+          "description": "Most ETH one transaction may carry.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "0.02",
+          "format": "string"
+        },
+        {
+          "name": "GRID_AGENT_MAX_TOTAL",
+          "description": "Most ETH all transactions together may carry in any 24 hours.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "0.1",
+          "format": "string"
+        },
+        {
+          "name": "GRID_AGENT_DIRECT",
+          "description": "Set to 1 to also register the direct rental tools: rent_machine, get_access, my_rentals, end_rental.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GRID_CHAIN_ID",
+          "description": "46630 is Robinhood Chain testnet, 4663 is Robinhood Chain, 31337 is a local chain.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "46630",
+          "format": "number"
+        },
+        {
+          "name": "GRID_RPC_URL",
+          "description": "Another RPC endpoint for the chain.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GRID_SITE_URL",
+          "description": "Website that serves the receipt pages linked from results.",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "https://gridcompute.net",
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

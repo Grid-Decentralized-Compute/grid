@@ -21,6 +21,7 @@ contract SwarmMarketTest is Test {
     SwarmMarket swarm;
 
     address renter = makeAddr("renter");
+    address treasury = makeAddr("treasury");
     address a = makeAddr("hostA");
     address b = makeAddr("hostB");
     address c = makeAddr("hostC");
@@ -36,9 +37,14 @@ contract SwarmMarketTest is Test {
     function setUp() public {
         grid = new MockGRID();
         stake = new StakeRegistry(IERC20(address(grid)), 0); // bonding off: every host eligible
-        swarm = new SwarmMarket(IStakeRegistry(address(stake)));
+        swarm = new SwarmMarket(IStakeRegistry(address(stake)), treasury);
         vm.deal(renter, 10 ether);
         vm.warp(1_700_000_000);
+    }
+
+    /// What a host keeps of one run: every host is bonded here (minBond 0), so the lower fee applies.
+    function _net(uint256 gross) internal view returns (uint256) {
+        return gross - gross * swarm.BONDED_FEE_BPS() / 10_000;
     }
 
     function _post(uint32 tasks) internal returns (uint256 id) {
@@ -161,8 +167,8 @@ contract SwarmMarketTest is Test {
         _reveal(b, id, 0, GOOD);
 
         assertEq(_status(id, 0), swarm.STATUS_DONE());
-        assertEq(swarm.balances(a), PRICE);
-        assertEq(swarm.balances(b), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
+        assertEq(swarm.balances(b), _net(PRICE));
         SwarmMarket.Job memory job = swarm.getJob(id);
         assertEq(job.done, 1);
         assertEq(job.resolved, 1);
@@ -194,9 +200,9 @@ contract SwarmMarketTest is Test {
         _reveal(c, id, 0, GOOD);
 
         assertEq(_status(id, 0), swarm.STATUS_DONE());
-        assertEq(swarm.balances(a), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
         assertEq(swarm.balances(b), 0);
-        assertEq(swarm.balances(c), PRICE);
+        assertEq(swarm.balances(c), _net(PRICE));
         assertEq(swarm.faults(b), 1);
         assertEq(swarm.faults(a), 0);
     }
@@ -231,8 +237,8 @@ contract SwarmMarketTest is Test {
         _reveal(c, id, 0, GOOD);
         _reveal(d, id, 0, GOOD);
         assertEq(swarm.balances(a), 0);
-        assertEq(swarm.balances(c), PRICE);
-        assertEq(swarm.balances(d), PRICE);
+        assertEq(swarm.balances(c), _net(PRICE));
+        assertEq(swarm.balances(d), _net(PRICE));
     }
 
     function test_lateCommitAcceptedWhenNobodyTookOver() public {
@@ -308,9 +314,9 @@ contract SwarmMarketTest is Test {
         _commit(c, id, 0, GOOD);
         _reveal(c, id, 0, GOOD);
         assertEq(_status(id, 0), swarm.STATUS_DONE());
-        assertEq(swarm.balances(a), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
         assertEq(swarm.balances(b), 0);
-        assertEq(swarm.balances(c), PRICE);
+        assertEq(swarm.balances(c), _net(PRICE));
     }
 
     function test_copiedCommitMatchingOutputIsStillRejected() public {
@@ -357,9 +363,9 @@ contract SwarmMarketTest is Test {
         assertEq(_run(id, 0, 1).result, bytes32(0));
         _commit(c, id, 0, GOOD);
         _reveal(c, id, 0, GOOD);
-        assertEq(swarm.balances(a), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
         assertEq(swarm.balances(b), 0);
-        assertEq(swarm.balances(c), PRICE);
+        assertEq(swarm.balances(c), _net(PRICE));
     }
 
     function test_bothReplicasMissingTheirRevealAreBothReplaced() public {
@@ -395,8 +401,8 @@ contract SwarmMarketTest is Test {
         _commit(b, id, 0, GOOD);
         _reveal(a, id, 0, GOOD);
         _reveal(b, id, 0, GOOD);
-        assertEq(swarm.balances(a), PRICE);
-        assertEq(swarm.balances(b), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
+        assertEq(swarm.balances(b), _net(PRICE));
     }
 
     function test_tieBreakRunGetsARevealDeadlineAndExpires() public {
@@ -411,8 +417,8 @@ contract SwarmMarketTest is Test {
         assertEq(swarm.faults(c), 1);
         _commit(d, id, 0, GOOD);
         _reveal(d, id, 0, GOOD);
-        assertEq(swarm.balances(a), PRICE);
-        assertEq(swarm.balances(d), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
+        assertEq(swarm.balances(d), _net(PRICE));
         assertEq(swarm.faults(b), 1);
     }
 
@@ -500,8 +506,8 @@ contract SwarmMarketTest is Test {
 
         _reveal(a, id, 0, GOOD);
         _reveal(b, id, 0, GOOD);
-        assertEq(swarm.balances(a), PRICE);
-        assertEq(swarm.balances(b), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
+        assertEq(swarm.balances(b), _net(PRICE));
 
         vm.prank(renter);
         swarm.closeJob(id); // finished
@@ -520,8 +526,8 @@ contract SwarmMarketTest is Test {
         _commit(b, id, 0, GOOD);
         _reveal(a, id, 0, GOOD);
         _reveal(b, id, 0, GOOD);
-        assertEq(swarm.balances(a), PRICE);
-        assertEq(swarm.balances(b), PRICE);
+        assertEq(swarm.balances(a), _net(PRICE));
+        assertEq(swarm.balances(b), _net(PRICE));
 
         uint256 lastLeaseEnd = swarm.getJob(id).lastLeaseEnd;
         vm.warp(lastLeaseEnd + LEASE);
@@ -626,6 +632,70 @@ contract SwarmMarketTest is Test {
         vm.prank(b);
         swarm.reveal(id, all, results, saltsB);
         assertEq(swarm.getJob(id).done, 4);
-        assertEq(swarm.balances(a), uint256(PRICE) * 4);
+        assertEq(swarm.balances(a), 4 * _net(PRICE));
+    }
+
+    // ---------------------------------------------------------------- protocol fee
+
+    function test_fee_eachPaidRunFeedsTheTreasury() public {
+        uint256 id = _post(1);
+        _claim(a, id, 0);
+        _claim(b, id, 0);
+        _commit(a, id, 0, GOOD);
+        _commit(b, id, 0, GOOD);
+        _reveal(a, id, 0, GOOD);
+        _reveal(b, id, 0, GOOD);
+        uint256 fee = uint256(PRICE) * swarm.BONDED_FEE_BPS() / 10_000;
+        assertEq(swarm.balances(a), PRICE - fee);
+        assertEq(swarm.balances(b), PRICE - fee);
+        assertEq(swarm.balances(treasury), 2 * fee);
+        // The renter's side is untouched by the fee: it still pays two runs per task.
+        assertEq(swarm.getJob(id).paid, uint256(PRICE) * 2);
+    }
+
+    function test_fee_hostThatDropsItsBondPaysTheFullFee() public {
+        // A registry with bonding on: hosts bond to claim, and one of them starts unbonding
+        // before the task settles, so it is no longer eligible when it is paid.
+        StakeRegistry gated = new StakeRegistry(IERC20(address(grid)), 1e18);
+        SwarmMarket market = new SwarmMarket(IStakeRegistry(address(gated)), treasury);
+        for (uint256 i = 0; i < 2; i++) {
+            address h = i == 0 ? a : b;
+            grid.mint(h, 1e18);
+            vm.startPrank(h);
+            grid.approve(address(gated), 1e18);
+            gated.bond(1e18);
+            vm.stopPrank();
+        }
+        vm.prank(renter);
+        uint256 id = market.postJob{value: uint256(PRICE) * 3}(PRICE, 1, LEASE, MANIFEST);
+        uint32[] memory tasks = new uint32[](1);
+        bytes32[] memory commits = new bytes32[](1);
+        bytes32[] memory results = new bytes32[](1);
+        bytes32[] memory salts = new bytes32[](1);
+        results[0] = GOOD;
+        for (uint256 i = 0; i < 2; i++) {
+            address h = i == 0 ? a : b;
+            salts[0] = keccak256(abi.encode(h));
+            commits[0] = market.commitHash(id, 0, h, GOOD, salts[0]);
+            vm.startPrank(h);
+            market.claim(id, tasks);
+            market.submit(id, tasks, commits);
+            vm.stopPrank();
+        }
+        vm.prank(b);
+        gated.startUnbond(1e18); // b leaves before revealing
+        for (uint256 i = 0; i < 2; i++) {
+            address h = i == 0 ? a : b;
+            salts[0] = keccak256(abi.encode(h));
+            vm.prank(h);
+            market.reveal(id, tasks, results, salts);
+        }
+        assertEq(market.balances(a), PRICE - uint256(PRICE) * market.BONDED_FEE_BPS() / 10_000);
+        assertEq(market.balances(b), PRICE - uint256(PRICE) * market.FEE_BPS() / 10_000);
+    }
+
+    function test_fee_zeroTreasuryReverts() public {
+        vm.expectRevert(SwarmMarket.ZeroAddress.selector);
+        new SwarmMarket(IStakeRegistry(address(stake)), address(0));
     }
 }

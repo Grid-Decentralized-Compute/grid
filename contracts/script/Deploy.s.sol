@@ -6,6 +6,7 @@ import {VmSafe} from "forge-std/Vm.sol";
 import {GridMarket} from "../src/GridMarket.sol";
 import {StakeRegistry} from "../src/StakeRegistry.sol";
 import {SwarmMarket} from "../src/SwarmMarket.sol";
+import {AllowanceFactory} from "../src/AllowanceFactory.sol";
 import {MockGRID} from "../src/MockGRID.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IStakeRegistry} from "../src/interfaces/IStakeRegistry.sol";
@@ -21,6 +22,8 @@ import {IStakeRegistry} from "../src/interfaces/IStakeRegistry.sol";
 ///   GRID_TOKEN      the GRID token; MockGRID is deployed when unset.
 ///   MIN_BOND        GRID wei a host must bond, default 100 GRID. The bond is the Sybil gate, so
 ///                   off anvil the script refuses MIN_BOND=0 unless ALLOW_UNBONDED=1 is set too.
+///   TREASURY        where the protocol fee accrues. Required off anvil (a multisig for the
+///                   Robinhood Chain launch); on anvil it defaults to the deployer.
 ///   OWNER           starts the two-step hand-over of the StakeRegistry to this address (a
 ///                   multisig), which then calls acceptOwnership(). The deployer stays owner
 ///                   until it does.
@@ -37,6 +40,7 @@ contract Deploy is Script {
         }
         address owner = vm.envOr("OWNER", address(0));
         uint256 deployerKey = local ? ANVIL_DEPLOYER_KEY : vm.envUint("PRIVATE_KEY");
+        address treasury = local ? vm.envOr("TREASURY", vm.addr(deployerKey)) : vm.envAddress("TREASURY");
 
         vm.startBroadcast(deployerKey);
         if (gridToken == address(0)) {
@@ -44,8 +48,9 @@ contract Deploy is Script {
             console.log("MockGRID:", gridToken);
         }
         StakeRegistry stake = new StakeRegistry(IERC20(gridToken), minBond);
-        GridMarket market = new GridMarket(IStakeRegistry(address(stake)));
-        SwarmMarket swarm = new SwarmMarket(IStakeRegistry(address(stake)));
+        GridMarket market = new GridMarket(IStakeRegistry(address(stake)), treasury);
+        SwarmMarket swarm = new SwarmMarket(IStakeRegistry(address(stake)), treasury);
+        AllowanceFactory allowances = new AllowanceFactory();
         stake.setMarket(address(market));
         if (owner != address(0)) stake.transferOwnership(owner);
         vm.stopBroadcast();
@@ -53,7 +58,9 @@ contract Deploy is Script {
         console.log("StakeRegistry:", address(stake));
         console.log("GridMarket:", address(market));
         console.log("SwarmMarket:", address(swarm));
+        console.log("AllowanceFactory:", address(allowances));
         console.log("minBond (GRID wei):", minBond);
+        console.log("treasury:", treasury);
         if (owner != address(0)) console.log("StakeRegistry owner pending, must acceptOwnership():", owner);
 
         // Only record addresses that were actually sent to the chain; a dry run keeps the old file.
@@ -62,6 +69,7 @@ contract Deploy is Script {
             vm.serializeAddress(json, "GRID", gridToken);
             vm.serializeAddress(json, "StakeRegistry", address(stake));
             vm.serializeAddress(json, "SwarmMarket", address(swarm));
+            vm.serializeAddress(json, "AllowanceFactory", address(allowances));
             string memory out = vm.serializeAddress(json, "GridMarket", address(market));
             vm.writeJson(out, string.concat("deployments/", vm.toString(block.chainid), ".json"));
         } else {

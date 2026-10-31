@@ -9,7 +9,8 @@ import { Link } from "../router";
 const PARTS: { name: string; runBy: ReactNode; ifItStops: ReactNode }[] = [
   {
     name: "Market and escrow",
-    runBy: "GridMarket and SwarmMarket, contracts on Robinhood Chain. They have no owner, take no fee and cannot be upgraded.",
+    runBy:
+      "GridMarket and SwarmMarket, contracts on Robinhood Chain. They have no owner and cannot be upgraded. A fixed fee of 2% comes out of the host's side of every payment, 1% for bonded hosts, and accrues to the treasury.",
     ifItStops: "Nobody can switch them off or move the ETH they hold. They are as available as Robinhood Chain itself.",
   },
   {
@@ -81,13 +82,19 @@ export function About() {
     <article ref={root} className="text-[15.5px] leading-[1.7] [&_p]:mt-4">
       <Prose>
       <h1 className="font-serif text-[34px] font-light leading-[1.1] tracking-[-0.01em]">Grid</h1>
-      <p className="!mt-2 text-muted">Decentralized compute on Robinhood Chain.</p>
+      <p className="!mt-2 text-muted">Decentralized compute network on Robinhood Chain.</p>
 
       <H2>How it works</H2>
       <p>
-        Grid is two marketplace contracts and a small program hosts run next to their GPUs. The contracts keep the list of
-        machines and jobs and hold renters' payments. Everything else happens between renters and hosts' machines. There
-        are two ways to rent.
+        Trustless batch compute has been tried for fifteen years and never worked, because the buyer had to be a human
+        holding a token nobody wanted. Grid is built for a different buyer: an AI agent holding ETH. It posts a job, idle
+        GPUs across the network run it, every task on two machines that have to agree before anyone is paid, and it pays
+        for nothing else. Robinhood Chain is cheap enough to settle every task on-chain, and no company sits in between:
+        Grid is two contracts and a small program hosts run next to their GPUs.
+      </p>
+      <p>
+        A swarm job is the main way to rent. A direct rental, one machine with an SSH login, is still there for anyone who
+        wants a whole machine to themselves.
       </p>
 
       <H2>What runs where</H2>
@@ -128,20 +135,28 @@ export function About() {
       <H2>Agents</H2>
       <p>
         Grid needs no account, only a wallet, so an AI agent can use it on its own. The Grid MCP server gives agents
-        such as Claude or ChatGPT the market as tools: find free GPUs, rent one and get its SSH login, run swarm jobs and
-        collect outputs two hosts agreed on, and run the host side of a machine. Each transaction is capped by a spending
-        limit, and the agent spends only what its wallet holds.{" "}
+        such as Claude or ChatGPT the market as tools: find free GPUs, run a batch job and get back outputs two hosts
+        agreed on, with a receipt for every task, and run the host side of a machine. A company can fund an agent through
+        a compute allowance, a small contract that caps what the agent may spend per day and keeps refunds out of its
+        reach. There is a command line for the same things.{" "}
         <a className={linkClass} href={`${DOCS_URL}/guides/agents`}>
           Setting it up
         </a>
+      </p>
+
+      <H2>Fee</H2>
+      <p>
+        Hosts pay a protocol fee of 2% of what they earn, 1% while bonded. It comes out of the host's side: a renter pays
+        the price that was listed and nothing more. The rate is written into the contracts and cannot be raised. Fees
+        accrue in ETH to the treasury, which withdraws them like anyone else.
       </p>
 
       <H2>GRID</H2>
       <p>
         GRID is the bond hosts post to stay listed. It is not required for a host's first 30 days, but until a host is
         bonded each rental is capped at 0.01 ETH. A bond cannot be withdrawn while one of the host's rentals is running,
-        takes seven days to unlock, and can be slashed if the host is shown to have cheated a renter. Rentals are always
-        paid in ETH; renters never need GRID.
+        takes seven days to unlock, and can be slashed if the host is shown to have cheated a renter. A bonded host also
+        pays the lower fee. Rentals are always paid in ETH; renters never need GRID.
       </p>
       <p>
         GRID will launch on Creora alongside the Robinhood Chain launch, with the entire supply on the bonding curve and

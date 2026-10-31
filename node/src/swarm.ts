@@ -7,6 +7,7 @@ import { type Address, formatEther, keccak256, parseEventLogs, toBytes, zeroHash
 import {
   MAX_OUTPUT_BYTES,
   parseManifest,
+  PROTOCOL_FEE_BPS,
   SWARM_MAX_BATCH,
   type SwarmManifest,
   stakeRegistryAbi,
@@ -15,6 +16,8 @@ import {
 import type { Chain } from "./chain";
 import type { Config } from "./config";
 import { log } from "./log";
+import { IdlePrice } from "./pricing";
+import { isOpenAt } from "./schedule";
 import { dockerEnv } from "./sessions";
 
 /** How many tasks of a job to scan per claimable() call, and how many recent jobs to consider. */
@@ -28,7 +31,10 @@ const RECENT_JOBS = 25;
 const IMAGE = /^[a-z0-9][a-z0-9._\/-]{0,200}(:[A-Za-z0-9._-]{1,128})?(@sha256:[a-f0-9]{64})?$/;
 /** The worker stops taking tasks when the disk holding its state has less free space than this. */
 const MIN_FREE_BYTES = 10 * 2 ** 30;
-/** Rough gas for claiming, running and settling one task, to skip jobs that pay less than they cost. */
+/**
+ * Rough gas for claiming, running and settling one task, to skip jobs that pay less than they cost.
+ * It is weighed against what the host receives, which is the price per run less the protocol fee.
+ */
 const GAS_PER_TASK = 250_000n;
 /** How often a running task checks whether a direct rental has started and it must make way. */
 const YIELD_CHECK_MS = 5_000;
@@ -54,6 +60,9 @@ export class SwarmWorker {
   private readonly resultsDir: string;
   private warnedBond = false;
   private readonly underpaid = new Set<bigint>();
+  /** The swarm minimum price while the machine sits idle (GRID_AUTO_PRICE): it drops until a task is claimed. */
+  private readonly idle: IdlePrice;
+  private loggedMinPrice: bigint;
   /** Commits computed but not yet accepted on-chain, oldest first. */
   private readonly unsent: { jobId: bigint; tasks: number[]; hashes: `0x${string}`[]; tries: number }[] = [];
 
@@ -68,9 +77,36 @@ export class SwarmWorker {
     this.swarm = { abi: swarmMarketAbi, address: config.swarm! };
     this.resultsDir = join(config.stateDir, "results", config.swarm!.toLowerCase());
     this.revealsFile = join(config.stateDir, `reveals-${config.swarm!.toLowerCase()}.json`);
+    this.idle = new IdlePrice(config.swarmMinPriceWei, config.swarmMinPriceFloorWei, config.priceStepPercent);
+    this.loggedMinPrice = config.swarmMinPriceWei;
   }
 
   private readonly revealsFile: string;
+
+  /** Lowest price per run this host takes right now. */
+  private minPrice(): bigint {
+    return this.config.autoPrice ? this.idle.current : this.config.swarmMinPriceWei;
+  }
+
+  private logMinPrice() {
+    const price = this.minPrice();
+    if (price === this.loggedMinPrice) return;
+    this.loggedMinPrice = price;
+    log(
+      price === this.config.swarmMinPriceWei
+        ? `swarm: minimum price back to ${formatEther(price)} ETH/run`
+        : `swarm: no task claimed for ${this.idle.hours} h — minimum price lowered to ${formatEther(price)} ETH/run`,
+    );
+  }
+
+  /**
+   * Called about once a minute with whether the machine is on offer and not rented. With GRID_AUTO_PRICE
+   * the minimum price drops by a step for every such hour without a claim.
+   */
+  noteIdle(idle: boolean) {
+    this.idle.advance(idle);
+    this.logMinPrice();
+  }
 
   private endpoint: string | null = null;
 
@@ -92,7 +128,9 @@ export class SwarmWorker {
     }
     log(
       `swarm: on (${this.docker ? "docker" : "simulated"} tasks, batch ${this.config.swarmBatch}, ` +
-        `min ${formatEther(this.config.swarmMinPriceWei)} ETH/run${this.config.swarmCheat ? ", CHEATING for tests" : ""})`,
+        `min ${formatEther(this.config.swarmMinPriceWei)} ETH/run` +
+        (this.config.autoPrice ? `, lowered to ${formatEther(this.config.swarmMinPriceFloorWei)} while idle` : "") +
+        `${this.config.swarmCheat ? ", CHEATING for tests" : ""})`,
     );
   }
 
@@ -103,6 +141,9 @@ export class SwarmWorker {
     // renter's job waits on it. Commits not yet on-chain go out, then anything now revealable.
     if (this.unsent.length > 0) return this.flush();
     if (await this.revealReady()) return true;
+    // Outside GRID_HOURS / GRID_DAYS nothing new is claimed. Tasks already claimed run to the end and
+    // their results are committed and revealed above, so no one is left waiting on this host.
+    if (!isOpenAt(this.config.schedule)) return false;
     if (!this.roomToWork()) return false;
     const pick = await this.findWork();
     if (!pick) return false;
@@ -113,6 +154,9 @@ export class SwarmWorker {
       .filter((e) => e.args.host.toLowerCase() === this.chain.address.toLowerCase())
       .map((e) => ({ task: e.args.task, slot: e.args.slot, leaseEnd: Number(e.args.leaseEnd) }));
     if (claims.length === 0) return false; // another host was faster
+    // A claim ends the idle stretch: the minimum price goes back to what the host set.
+    this.idle.reset();
+    this.logMinPrice();
     log(`swarm: job ${jobId} — claimed ${claims.length} task(s): ${claims.map((c) => c.task).join(", ")}`);
 
     const done: number[] = [];
@@ -289,13 +333,19 @@ export class SwarmWorker {
       args: [0n, BigInt(RECENT_JOBS)],
     });
     const gasPrice = await client.getGasPrice();
+    const minPrice = this.minPrice();
     // Oldest open job first, so work is finished in the order it was posted.
     for (const { id, job } of [...jobs].reverse()) {
       if (job.cancelled || job.closed || job.resolved === job.taskCount) continue;
-      if (job.pricePerRun < this.config.swarmMinPriceWei) continue;
-      // Skip jobs that pay less per task than the gas to claim and settle it would cost.
-      if (job.pricePerRun < gasPrice * GAS_PER_TASK) {
-        if (!this.underpaid.has(id)) log(`swarm: skipping job ${id}: ${formatEther(job.pricePerRun)} ETH per run is less than the gas to run it`);
+      if (job.pricePerRun < minPrice) continue;
+      // Skip jobs that pay less per task than the gas to claim and settle it would cost. The protocol
+      // fee comes out of the host's side: 2%, or 1% for a bonded host. The larger is assumed here, so
+      // a job is never taken at a loss.
+      const received = job.pricePerRun - (job.pricePerRun * BigInt(PROTOCOL_FEE_BPS)) / 10_000n;
+      if (received < gasPrice * GAS_PER_TASK) {
+        if (!this.underpaid.has(id)) {
+          log(`swarm: skipping job ${id}: ${formatEther(job.pricePerRun)} ETH per run leaves ${formatEther(received)} ETH after the protocol fee, less than the gas to run it`);
+        }
         this.underpaid.add(id);
         continue;
       }

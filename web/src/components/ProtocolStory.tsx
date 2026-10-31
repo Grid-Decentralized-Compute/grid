@@ -3,9 +3,9 @@ import { gsap, reducedMotion, ScrollTrigger, scrollToTarget } from "../lib/motio
 import { Code } from "./ui";
 
 /**
- * How a direct rental and a swarm job move through Grid, told one paragraph at a time. The drawing
- * stays in view while the text scrolls; each paragraph moves it to the step it describes, scrubbed
- * by the scroll position so it can be read forwards and backwards.
+ * How a swarm job and then a direct rental move through Grid, told one paragraph at a time. The
+ * drawing stays in view while the text scrolls; each paragraph moves it to the step it describes,
+ * scrubbed by the scroll position so it can be read forwards and backwards.
  *
  * The drawing uses the network plate's engraving: machines on a lattice, renters between them, and
  * under them the chain with the two markets as sub-dials. A dial's arc is a power reserve: the ETH
@@ -16,48 +16,6 @@ import { Code } from "./ui";
 type Step = { group: "Direct" | "Swarm"; call?: string; note?: string; text: ReactNode };
 
 const STEPS: Step[] = [
-  {
-    group: "Direct",
-    call: "listMachine",
-    text: (
-      <>
-        A host's node registers the machine with <Code>listMachine</Code>, giving an hourly price in ETH and the address
-        the node can be reached at.
-      </>
-    ),
-  },
-  {
-    group: "Direct",
-    call: "rent",
-    text: (
-      <>
-        To rent it, you call <Code>rent</Code> with the number of hours and send the ETH for them. The node sees the
-        rental on-chain, starts a container for you, and lets your SSH key in once you sign a message proving the rental
-        is yours.
-      </>
-    ),
-  },
-  {
-    group: "Direct",
-    call: "endRental",
-    text: (
-      <>
-        A rental ends when either of you calls <Code>endRental</Code>, or when anyone does after the paid hours run out.
-        The host is paid for every minute that was started and you are refunded the remainder. Both of you collect with{" "}
-        <Code>withdraw</Code>. The contract has no owner and charges no fee.
-      </>
-    ),
-  },
-  {
-    group: "Direct",
-    note: "host offline",
-    text: (
-      <>
-        A direct rental depends on one machine. If its host goes offline, the session ends with it; you pay only for the
-        minutes that were started, and anything on the machine is lost.
-      </>
-    ),
-  },
   {
     group: "Swarm",
     call: "postJob",
@@ -106,6 +64,48 @@ const STEPS: Step[] = [
       <>
         Results are fetched straight from the hosts that produced them and checked against the hashes on-chain, so a
         result shown here is one two hosts agreed on. Tasks must be deterministic, and a job's inputs are public.
+      </>
+    ),
+  },
+  {
+    group: "Direct",
+    call: "listMachine",
+    text: (
+      <>
+        A host's node registers the machine with <Code>listMachine</Code>, giving an hourly price in ETH and the address
+        the node can be reached at.
+      </>
+    ),
+  },
+  {
+    group: "Direct",
+    call: "rent",
+    text: (
+      <>
+        To rent it, you call <Code>rent</Code> with the number of hours and send the ETH for them. The node sees the
+        rental on-chain, starts a container for you, and lets your SSH key in once you sign a message proving the rental
+        is yours.
+      </>
+    ),
+  },
+  {
+    group: "Direct",
+    call: "endRental",
+    text: (
+      <>
+        A rental ends when either of you calls <Code>endRental</Code>, or when anyone does after the paid hours run out.
+        The host is paid for every minute that was started and you are refunded the remainder. Both of you collect with{" "}
+        <Code>withdraw</Code>. The contract has no owner and charges no fee.
+      </>
+    ),
+  },
+  {
+    group: "Direct",
+    note: "host offline",
+    text: (
+      <>
+        A direct rental depends on one machine. If its host goes offline, the session ends with it; you pay only for the
+        minutes that were started, and anything on the machine is lost.
       </>
     ),
   },
@@ -487,8 +487,13 @@ function Dial({ at: d, name, unit, k }: { at: Pt; name: string; unit: string; k:
 }
 
 /**
- * The whole story as one paused timeline: step i plays between time i and i + 1. Built with
- * set/to pairs so scrubbing backwards undoes each step exactly.
+ * The whole story as one paused timeline: step i plays between time i and i + 1, the swarm job in
+ * steps 0 to 4 and the direct rental in steps 5 to 8. Built with set/to pairs, each element's in
+ * time order, so scrubbing backwards undoes each step exactly.
+ *
+ * At time 0 the plate is empty but for the lattice and the two dials at zero: the swarm job is about
+ * to be posted. The direct marks (host ring, price, renter, wires) start hidden in the markup and
+ * stay hidden until step 5.
  */
 function choreograph(q: (selector: string) => Element[]) {
   const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.inOut" } });
@@ -523,107 +528,107 @@ function choreograph(q: (selector: string) => Element[]) {
   // Blocks keep arriving all the way through.
   tl.to(one("blocks"), { x: -8 * 4 * STEPS.length, duration: STEPS.length, ease: "none" }, 0);
 
-  // 0 · listMachine: the host's node lists the machine; the listing lands in GridMarket.
-  show("host-ring", 0, 0.12);
-  tl.fromTo(one("price"), { opacity: 0, y: 3 }, { opacity: 1, y: 0, duration: 0.16, ease: "power2.out", immediateRender: false }, 0.06);
-  draw("listing", 0.18, 0.32);
-  travel(one("t-list"), HOST, top(GM), 0.4, 0.3);
-  ping("gm", 0.7);
+  // 0 · postJob: an owner posts four tasks and pays for three runs of each into SwarmMarket.
+  tl.fromTo(one("owner"), { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.1, ease: "back.out(2)", immediateRender: false }, 0.04);
+  tl.fromTo(one("chips"), { opacity: 0 }, { opacity: 1, duration: 0.1, ease: "none", immediateRender: false }, 0.1);
+  all("t-run").forEach((el, i) => travel(el, OWNER, top(SM), 0.22 + i * 0.09, 0.2));
+  dial("sm", 12, 12, 0.42, 0.22);
+  ping("sm", 0.62);
 
-  // 1 · rent: the renter pays into the dial, the node sees it and starts the container, keys are
-  // exchanged, and the session runs.
-  tl.fromTo(one("renter"), { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.1, ease: "back.out(2)", immediateRender: false }, 1);
-  travel(one("t-rent"), RENTER, top(GM), 1.08, 0.22);
-  ping("gm", 1.3);
-  dial("gm", 0.8, 0.8, 1.3);
-  travel(one("t-pulse"), top(GM), HOST, 1.42, 0.16);
-  show("host-lit", 1.56, 0.05);
-  show("keyline", 1.6, 0.04);
-  show("key-label", 1.6, 0.05);
-  travel(one("t-key"), RENTER, HOST, 1.62, 0.1);
-  travel(one("t-hostkey"), HOST, RENTER, 1.73, 0.1);
-  hide("key-label", 1.84, 0.04);
-  hide("keyline", 1.84, 0.04);
-  draw("session", 1.82, 0.08);
-
-  // 2 · endRental: time passes, the session ends, the host is paid for the minutes started and
-  // the rest goes back to the renter.
-  hide("session", 2.3, 0.06);
-  hide("host-lit", 2.3, 0.06);
-  travel(one("t-pay"), top(GM), HOST, 2.38, 0.2);
-  dial("gm", 0.53, 0.8, 2.4);
-  show("paid", 2.56, 0.06);
-  travel(one("t-refund"), top(GM), RENTER, 2.6, 0.2);
-  dial("gm", 0, 0.8, 2.62);
-  show("refund", 2.78, 0.06);
-
-  // 3 · the host goes offline: the machine drops out of the network.
-  hide("paid", 3, 0.05);
-  hide("refund", 3, 0.05);
-  tl.set(one("session"), { attr: { "stroke-dashoffset": 1 }, opacity: 1 }, 3.04);
-  draw("session", 3.06, 0.08);
-  show("host-lit", 3.06, 0.04);
-  hide("host-lit", 3.36, 0.03);
-  hide("session", 3.36, 0.06);
-  hide("host-ring", 3.36, 0.04);
-  show("host-off", 3.38, 0.06);
-  hide("host-base", 3.38, 0.06, 0.25);
-  hide("price", 3.4, 0.08, 0.35);
-  hide("listing", 3.4, 0.08, 0.3);
-  hide("renter", 3.5, 0.1, 0.4);
-
-  // 4 · postJob: the direct rental steps back; an owner elsewhere posts four tasks and pays for
-  // three runs of each into SwarmMarket.
-  hide(q('[data-k="direct"], [data-k="direct-marks"]'), 4, 0.08, 0.28);
-  tl.fromTo(one("owner"), { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.1, ease: "back.out(2)", immediateRender: false }, 4.04);
-  tl.fromTo(one("chips"), { opacity: 0 }, { opacity: 1, duration: 0.1, ease: "none", immediateRender: false }, 4.1);
-  all("t-run").forEach((el, i) => travel(el, OWNER, top(SM), 4.22 + i * 0.09, 0.2));
-  dial("sm", 12, 12, 4.42, 0.22);
-  ping("sm", 4.62);
-
-  // 5 · claim and submit: idle hosts across the network take the runs; each sends a sealed hash.
+  // 1 · claim and submit: idle hosts across the network take the runs; each sends a sealed hash.
   const flat = PAIRS.flat();
-  all("w").forEach((el, i) => draw(el, 5 + i * 0.035, 0.18));
-  all("lit").forEach((el, i) => show(el, 5.16 + i * 0.035, 0.04));
-  all("chip-on").forEach((el, i) => show(el, 5.1 + i * 0.07, 0.04));
-  all("t-hash").forEach((el, i) => travel(el, flat[i], top(SM), 5.46 + i * 0.035, 0.2));
-  ping("sm", 5.9);
+  all("w").forEach((el, i) => draw(el, 1 + i * 0.035, 0.18));
+  all("lit").forEach((el, i) => show(el, 1.16 + i * 0.035, 0.04));
+  all("chip-on").forEach((el, i) => show(el, 1.1 + i * 0.07, 0.04));
+  all("t-hash").forEach((el, i) => travel(el, flat[i], top(SM), 1.46 + i * 0.035, 0.2));
+  ping("sm", 1.9);
 
-  // 6 · reveal: matching pairs are paid; the third pair disagrees, a tie-break host settles it and
+  // 2 · reveal: matching pairs are paid; the third pair disagrees, a tie-break host settles it and
   // the odd one out is recorded as a fault.
   const earn = all("t-earn");
-  [PAIRS[0][0], PAIRS[0][1], PAIRS[1][0], PAIRS[1][1]].forEach((h, i) => travel(earn[i], top(SM), h, 6.02 + i * 0.03, 0.18));
-  dial("sm", 8, 12, 6.04);
-  show("hash-a", 6.26, 0.05);
-  show("hash-b", 6.3, 0.05);
-  draw("tie-wire", 6.38, 0.12);
-  show("tie-lit", 6.5, 0.04);
-  show("hash-tie", 6.54, 0.05);
-  show("hash-b-bad", 6.62, 0.05);
-  show("fault", 6.64, 0.05);
-  hide(all("lit")[flat.indexOf(ODD)], 6.64, 0.05);
-  [PAIRS[2][0], TIE].forEach((h, i) => travel(earn[4 + i], top(SM), h, 6.7 + i * 0.03, 0.16));
-  dial("sm", 6, 12, 6.72);
+  [PAIRS[0][0], PAIRS[0][1], PAIRS[1][0], PAIRS[1][1]].forEach((h, i) => travel(earn[i], top(SM), h, 2.02 + i * 0.03, 0.18));
+  dial("sm", 8, 12, 2.04);
+  show("hash-a", 2.26, 0.05);
+  show("hash-b", 2.3, 0.05);
+  draw("tie-wire", 2.38, 0.12);
+  show("tie-lit", 2.5, 0.04);
+  show("hash-tie", 2.54, 0.05);
+  show("hash-b-bad", 2.62, 0.05);
+  show("fault", 2.64, 0.05);
+  hide(all("lit")[flat.indexOf(ODD)], 2.64, 0.05);
+  [PAIRS[2][0], TIE].forEach((h, i) => travel(earn[4 + i], top(SM), h, 2.7 + i * 0.03, 0.16));
+  dial("sm", 6, 12, 2.72);
 
-  // 7 · a lease runs out and is handed on; the job is closed and the runs not needed go back.
-  hide(all("lit")[flat.indexOf(LAPSED)], 7, 0.04);
-  show("lapsed-off", 7.02, 0.06);
-  hide(q(".lapsed-wire"), 7.02, 0.08, 0.15);
-  draw("standby-wire", 7.12, 0.14);
-  show("standby-lit", 7.26, 0.04);
-  travel(one("t-standby-hash"), STANDBY, top(SM), 7.3, 0.14);
-  [PAIRS[3][0], STANDBY].forEach((h, i) => travel(earn[6 + i], top(SM), h, 7.46 + i * 0.03, 0.14));
-  dial("sm", 4, 12, 7.48);
-  travel(one("t-swarm-refund"), top(SM), OWNER, 7.66, 0.18);
-  dial("sm", 0, 12, 7.68);
+  // 3 · a lease runs out and is handed on; the job is closed and the runs not needed go back.
+  hide(all("lit")[flat.indexOf(LAPSED)], 3, 0.04);
+  show("lapsed-off", 3.02, 0.06);
+  hide(q(".lapsed-wire"), 3.02, 0.08, 0.15);
+  draw("standby-wire", 3.12, 0.14);
+  show("standby-lit", 3.26, 0.04);
+  travel(one("t-standby-hash"), STANDBY, top(SM), 3.3, 0.14);
+  [PAIRS[3][0], STANDBY].forEach((h, i) => travel(earn[6 + i], top(SM), h, 3.46 + i * 0.03, 0.14));
+  dial("sm", 4, 12, 3.48);
+  travel(one("t-swarm-refund"), top(SM), OWNER, 3.66, 0.18);
+  dial("sm", 0, 12, 3.68);
 
-  // 8 · results: outputs come straight from the hosts, are checked against the hashes on-chain,
+  // 4 · results: outputs come straight from the hosts, are checked against the hashes on-chain,
   // and the tasks are done.
-  hide(q('[data-k="w"], [data-k="tie-wire"], [data-k="standby-wire"]'), 8, 0.1, 0.25);
-  all("t-out").forEach((el, i) => ship(el, SOURCES[i], OWNER, 8.06 + i * 0.05, 0.26));
-  draw("check-wire", 8.38, 0.14);
-  all("chip-done").forEach((el, i) => show(el, 8.52 + i * 0.04, 0.04));
-  draw("check", 8.62, 0.1);
+  hide(q('[data-k="w"], [data-k="tie-wire"], [data-k="standby-wire"]'), 4, 0.1, 0.25);
+  all("t-out").forEach((el, i) => ship(el, SOURCES[i], OWNER, 4.06 + i * 0.05, 0.26));
+  draw("check-wire", 4.38, 0.14);
+  all("chip-done").forEach((el, i) => show(el, 4.52 + i * 0.04, 0.04));
+  draw("check", 4.62, 0.1);
+
+  // 5 · listMachine: the finished swarm job steps back; a host's node lists its machine and the
+  // listing lands in GridMarket.
+  hide(q('[data-k="swarm"], [data-k="swarm-marks"]'), 5, 0.08, 0.28);
+  show("host-ring", 5, 0.12);
+  tl.fromTo(one("price"), { opacity: 0, y: 3 }, { opacity: 1, y: 0, duration: 0.16, ease: "power2.out", immediateRender: false }, 5.06);
+  draw("listing", 5.18, 0.32);
+  travel(one("t-list"), HOST, top(GM), 5.4, 0.3);
+  ping("gm", 5.7);
+
+  // 6 · rent: the renter pays into the dial, the node sees it and starts the container, keys are
+  // exchanged, and the session runs.
+  tl.fromTo(one("renter"), { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.1, ease: "back.out(2)", immediateRender: false }, 6);
+  travel(one("t-rent"), RENTER, top(GM), 6.08, 0.22);
+  ping("gm", 6.3);
+  dial("gm", 0.8, 0.8, 6.3);
+  travel(one("t-pulse"), top(GM), HOST, 6.42, 0.16);
+  show("host-lit", 6.56, 0.05);
+  show("keyline", 6.6, 0.04);
+  show("key-label", 6.6, 0.05);
+  travel(one("t-key"), RENTER, HOST, 6.62, 0.1);
+  travel(one("t-hostkey"), HOST, RENTER, 6.73, 0.1);
+  hide("key-label", 6.84, 0.04);
+  hide("keyline", 6.84, 0.04);
+  draw("session", 6.82, 0.08);
+
+  // 7 · endRental: time passes, the session ends, the host is paid for the minutes started and
+  // the rest goes back to the renter.
+  hide("session", 7.3, 0.06);
+  hide("host-lit", 7.3, 0.06);
+  travel(one("t-pay"), top(GM), HOST, 7.38, 0.2);
+  dial("gm", 0.53, 0.8, 7.4);
+  show("paid", 7.56, 0.06);
+  travel(one("t-refund"), top(GM), RENTER, 7.6, 0.2);
+  dial("gm", 0, 0.8, 7.62);
+  show("refund", 7.78, 0.06);
+
+  // 8 · the host goes offline: the machine drops out of the network.
+  hide("paid", 8, 0.05);
+  hide("refund", 8, 0.05);
+  tl.set(one("session"), { attr: { "stroke-dashoffset": 1 }, opacity: 1 }, 8.04);
+  draw("session", 8.06, 0.08);
+  show("host-lit", 8.06, 0.04);
+  hide("host-lit", 8.36, 0.03);
+  hide("session", 8.36, 0.06);
+  hide("host-ring", 8.36, 0.04);
+  show("host-off", 8.38, 0.06);
+  hide("host-base", 8.38, 0.06, 0.25);
+  hide("price", 8.4, 0.08, 0.35);
+  hide("listing", 8.4, 0.08, 0.3);
+  hide("renter", 8.5, 0.1, 0.4);
 
   tl.set({}, {}, STEPS.length);
   return tl;

@@ -16,6 +16,7 @@ contract GridMarketTest is Test {
     address host = makeAddr("host");
     address renter = makeAddr("renter");
     address stranger = makeAddr("stranger");
+    address treasury = makeAddr("treasury");
 
     uint96 constant PRICE = 0.0012 ether; // per hour
     uint256 constant MIN_BOND = 100e18;
@@ -23,11 +24,17 @@ contract GridMarketTest is Test {
     function setUp() public {
         grid = new MockGRID();
         stake = new StakeRegistry(IERC20(address(grid)), MIN_BOND);
-        market = new GridMarket(IStakeRegistry(address(stake)));
+        market = new GridMarket(IStakeRegistry(address(stake)), treasury);
         stake.setMarket(address(market));
         vm.deal(renter, 10 ether);
         vm.deal(stranger, 1 ether);
         vm.warp(1_700_000_000);
+    }
+
+    /// What the host keeps of `gross` after the protocol fee at its current bond status.
+    function _net(uint256 gross) internal view returns (uint256) {
+        uint256 bps = stake.isEligible(host) ? market.BONDED_FEE_BPS() : market.FEE_BPS();
+        return gross - gross * bps / 10_000;
     }
 
     function _list() internal returns (uint64 id) {
@@ -154,7 +161,7 @@ contract GridMarketTest is Test {
         market.endRental(rid);
 
         uint256 cost = uint256(PRICE) * 31 / 60;
-        assertEq(market.balances(host), cost);
+        assertEq(market.balances(host), _net(cost));
         assertEq(market.balances(renter), uint256(PRICE) * 2 - cost);
         assertTrue(market.canRent(id));
         assertTrue(market.getRental(rid).ended);
@@ -162,7 +169,7 @@ contract GridMarketTest is Test {
         uint256 before = host.balance;
         vm.prank(host);
         market.withdraw();
-        assertEq(host.balance - before, cost);
+        assertEq(host.balance - before, _net(cost));
 
         vm.prank(host);
         vm.expectRevert(GridMarket.NothingToWithdraw.selector);
@@ -174,7 +181,7 @@ contract GridMarketTest is Test {
         uint64 rid = _rent(id, 1);
         vm.prank(renter);
         market.endRental(rid); // same second
-        assertEq(market.balances(host), uint256(PRICE) / 60);
+        assertEq(market.balances(host), _net(uint256(PRICE) / 60));
     }
 
     function test_strangerCannotEndBeforeExpiry() public {
@@ -192,7 +199,7 @@ contract GridMarketTest is Test {
         vm.warp(block.timestamp + 3 hours); // well past the 2 paid hours
         vm.prank(stranger);
         market.endRental(rid);
-        assertEq(market.balances(host), uint256(PRICE) * 2);
+        assertEq(market.balances(host), _net(uint256(PRICE) * 2));
         assertEq(market.balances(renter), 0);
     }
 
@@ -202,7 +209,7 @@ contract GridMarketTest is Test {
         vm.warp(block.timestamp + 1 hours);
         vm.prank(host);
         market.endRental(rid);
-        assertEq(market.balances(host), PRICE);
+        assertEq(market.balances(host), _net(PRICE));
         assertEq(market.balances(renter), uint256(PRICE) * 3);
     }
 
@@ -228,7 +235,7 @@ contract GridMarketTest is Test {
         vm.prank(host);
         market.endRental(rid);
         uint256 cost = uint256(PRICE) * 30 / 60;
-        assertEq(market.balances(host), cost);
+        assertEq(market.balances(host), _net(cost));
         assertEq(market.balances(renter), uint256(PRICE) * 2 - cost);
     }
 
@@ -238,7 +245,7 @@ contract GridMarketTest is Test {
         vm.warp(block.timestamp + 2 hours);
         vm.prank(host);
         market.endRental(rid);
-        assertEq(market.balances(host), uint256(PRICE) * 2);
+        assertEq(market.balances(host), _net(uint256(PRICE) * 2));
         assertEq(market.balances(renter), 0);
     }
 
@@ -260,7 +267,7 @@ contract GridMarketTest is Test {
         vm.warp(block.timestamp + 1 hours);
         vm.prank(renter);
         market.endRental(rid);
-        assertEq(market.balances(host), PRICE);
+        assertEq(market.balances(host), _net(PRICE));
     }
 
     function test_hostCanPauseListing() public {
@@ -295,5 +302,63 @@ contract GridMarketTest is Test {
         vm.prank(renter);
         market.withdraw();
         assertEq(renter.balance - before, uint256(PRICE) * 2 - uint256(PRICE) * 10 / 60);
+    }
+
+    // ---------------------------------------------------------------- protocol fee
+
+    function test_fee_unbondedHostPaysTwoPercent() public {
+        uint64 m = _list();
+        uint64 rid = _rent(m, 2);
+        vm.warp(block.timestamp + 2 hours);
+        market.endRental(rid);
+        uint256 cost = uint256(PRICE) * 2;
+        uint256 fee = cost * market.FEE_BPS() / 10_000;
+        assertEq(market.FEE_BPS(), 200);
+        assertEq(market.balances(host), cost - fee);
+        assertEq(market.balances(treasury), fee);
+        assertEq(market.balances(host) + market.balances(treasury) + market.balances(renter), cost);
+    }
+
+    function test_fee_bondedHostPaysOnePercent() public {
+        _bondHost();
+        uint64 m = _list();
+        uint64 rid = _rent(m, 2);
+        vm.warp(block.timestamp + 2 hours);
+        market.endRental(rid);
+        uint256 cost = uint256(PRICE) * 2;
+        uint256 fee = cost * market.BONDED_FEE_BPS() / 10_000;
+        assertEq(market.BONDED_FEE_BPS(), 100);
+        assertEq(market.balances(host), cost - fee);
+        assertEq(market.balances(treasury), fee);
+    }
+
+    function test_fee_treasuryWithdrawsLikeAnyone() public {
+        uint64 m = _list();
+        uint64 rid = _rent(m, 1);
+        vm.warp(block.timestamp + 1 hours);
+        market.endRental(rid);
+        uint256 fee = market.balances(treasury);
+        assertGt(fee, 0);
+        vm.prank(treasury);
+        market.withdraw();
+        assertEq(treasury.balance, fee);
+        assertEq(market.balances(treasury), 0);
+    }
+
+    function test_fee_eventCarriesNetAndFee() public {
+        uint64 m = _list();
+        uint64 rid = _rent(m, 1);
+        vm.warp(block.timestamp + 30 minutes);
+        uint256 cost = uint256(PRICE) * 30 / 60;
+        uint256 fee = cost * market.FEE_BPS() / 10_000;
+        vm.expectEmit(true, true, false, true);
+        emit GridMarket.RentalEnded(rid, m, uint128(cost - fee), uint128(fee), uint128(uint256(PRICE) - cost));
+        vm.prank(renter);
+        market.endRental(rid);
+    }
+
+    function test_fee_zeroTreasuryReverts() public {
+        vm.expectRevert(GridMarket.ZeroAddress.selector);
+        new GridMarket(IStakeRegistry(address(stake)), address(0));
     }
 }

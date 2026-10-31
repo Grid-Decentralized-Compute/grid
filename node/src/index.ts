@@ -6,6 +6,8 @@ import { loadConfig } from "./config";
 import { probeHardware } from "./hardware";
 import { log } from "./log";
 import { P2P } from "./p2p";
+import { IdlePrice } from "./pricing";
+import { isOpenAt } from "./schedule";
 import { startServer } from "./server";
 import { SessionManager } from "./sessions";
 import { SwarmWorker } from "./swarm";
@@ -69,8 +71,29 @@ async function main() {
     return JSON.stringify(metadata);
   };
 
-  // Behind NAT the SSH port cannot be reached, so the listing stays closed to direct rentals.
-  const machineId = await chain.ensureListed(metadataFor(endpoint), config.pricePerHourWei, direct);
+  // Whether the listing is open to direct rentals, and at what price. Behind NAT the SSH port cannot be
+  // reached, so it stays closed. Outside GRID_HOURS / GRID_DAYS it is closed too, and with GRID_AUTO_PRICE
+  // the price follows how long the machine has sat unrented. Without those settings this is just
+  // `direct` and GRID_PRICE_PER_HOUR.
+  const idlePrice = new IdlePrice(config.pricePerHourWei, config.priceFloorWei, config.priceStepPercent);
+  let rented = false;
+  let gaveUp = false;
+  const listingOpen = () => direct && !gaveUp && isOpenAt(config.schedule);
+  const listingPrice = () => (config.autoPrice && direct ? idlePrice.current : config.pricePerHourWei);
+  if (config.schedule) {
+    log(`schedule: ${config.schedule.label} (local time) — ${isOpenAt(config.schedule) ? "open" : "closed"} now`);
+  }
+  if (config.autoPrice) {
+    log(
+      `pricing: automatic — ${config.priceStepPercent}% off per idle hour, ` +
+        `down to ${formatEther(config.priceFloorWei)} ETH/h for rentals and ${formatEther(config.swarmMinPriceFloorWei)} ETH/run for swarm`,
+    );
+  }
+
+  // What the chain shows for the listing, as far as this node has written it.
+  let listedOpen = listingOpen();
+  let listedPrice = listingPrice();
+  const machineId = await chain.ensureListed(metadataFor(endpoint), listedPrice, listedOpen);
   log(
     `listed as machine #${machineId}, reachable at ${endpoint ?? "nowhere yet"}` +
       (direct ? `, ssh via ${config.sshHost}:${config.sshPort}` : " (swarm only: no public address for SSH)"),
@@ -121,7 +144,9 @@ async function main() {
     try {
       log(`p2p: now reachable at ${next ?? "nowhere"} (was ${endpoint ?? "nowhere"})`);
       endpoint = next;
-      await chain.ensureListed(metadataFor(endpoint), config.pricePerHourWei, direct);
+      listedPrice = listingPrice();
+      listedOpen = listingOpen();
+      await chain.ensureListed(metadataFor(endpoint), listedPrice, listedOpen);
       if (swarm) await swarm.register(endpoint);
     } catch (e) {
       log(`p2p: could not publish the new address: ${firstLine(e)}`);
@@ -135,6 +160,9 @@ async function main() {
 
   async function tick() {
     const active = activeOf(await chain.getMachine(machineId));
+    // A rental, however short, starts the idle count over.
+    rented = active !== null;
+    if (rented) idlePrice.reset();
 
     // A new rental can follow the old one within a single poll, so compare ids, not just "idle".
     if (current !== null && active !== current) {
@@ -157,6 +185,7 @@ async function main() {
         if (startFailures >= MAX_START_FAILURES) {
           // Do not keep billing a renter for a machine that cannot serve them.
           log(`giving up on rental #${active}: ending it so the renter is refunded, and pausing this listing until the node restarts`);
+          gaveUp = true; // the schedule must not open the listing again
           await chain.endRental(active);
           await chain.setAvailable(machineId, false);
           startFailures = 0;
@@ -174,6 +203,56 @@ async function main() {
     }
   }
 
+  // Once a minute: follow the schedule and the self-pricing. The listing is only written when it would
+  // change, in one transaction, and a write that fails is tried again a minute later.
+  let windowOpen = isOpenAt(config.schedule);
+  let upkeeping = false;
+  let stopping = false;
+
+  async function upkeep() {
+    if (upkeeping || stopping) return;
+    upkeeping = true;
+    try {
+      const open = isOpenAt(config.schedule);
+      if (open !== windowOpen) {
+        windowOpen = open;
+        const listing = direct && !gaveUp;
+        log(
+          open
+            ? `schedule: window open — taking swarm tasks again${listing ? " and opening the listing to rentals" : ""}`
+            : `schedule: window closed — no new swarm tasks, those already claimed finish${listing ? "; closing the listing to new rentals" : ""}`,
+        );
+      }
+
+      // Idle time counts only while the machine is on offer and nobody has rented it.
+      idlePrice.advance(open && !rented);
+      swarm?.noteIdle(open && !rented);
+
+      const available = listingOpen();
+      const price = listingPrice();
+      if (available === listedOpen && price === listedPrice) return;
+      const sent = await chain.updateListing(machineId, {
+        available,
+        // Only touch the price when this node means to change it.
+        price: price !== listedPrice ? price : undefined,
+      });
+      if (sent && price !== listedPrice) {
+        log(
+          price > listedPrice
+            ? `pricing: listing price back to ${formatEther(price)} ETH/h`
+            : `pricing: no rental for ${idlePrice.hours} h — listing price lowered to ${formatEther(price)} ETH/h`,
+        );
+      }
+      listedOpen = available;
+      listedPrice = price;
+    } catch (e) {
+      log(`could not update the listing: ${firstLine(e)}`);
+    } finally {
+      upkeeping = false;
+    }
+  }
+  setInterval(() => void upkeep(), 60_000);
+
   async function loop() {
     let worked = false;
     try {
@@ -188,6 +267,7 @@ async function main() {
   void loop();
 
   async function shutdown() {
+    stopping = true;
     if (current !== null && sessions.mode === "docker") {
       // The renter keeps what they paid for: the container stays up and is adopted when the node returns.
       log(`shutting down with rental #${current} running — its container stays up until the rental ends`);

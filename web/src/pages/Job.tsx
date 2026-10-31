@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { keccak256, toBytes } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { MAX_OUTPUT_BYTES, resultUrl, type SwarmManifest, swarmMarketAbi, TaskStatus } from "@grid/shared";
+import { type SwarmManifest, swarmMarketAbi, TaskStatus } from "@grid/shared";
 import { Button, ErrorText, Stat, Status, type Tone } from "../components/ui";
 import { useDeployment } from "../contracts";
 import { fmtEth, shortAddr } from "../lib/format";
-import { endpointBlocked, useNow } from "../lib/hooks";
+import { useNow } from "../lib/hooks";
+import { checkTaskOutput } from "../lib/outputs";
 import { type JobActivity, useJobActivity, useManifest } from "../lib/swarm";
 import { useTx } from "../lib/useTx";
 import { Link } from "../router";
@@ -310,20 +310,14 @@ async function fetchVerified(
   runs: { host: Address; result: `0x${string}` }[],
   activity: JobActivity,
 ): Promise<{ host: Address; text: string } | null> {
-  for (const run of runs.filter((r) => r.result === agreed)) {
-    const endpoint = activity.endpoints.get(run.host);
-    if (!endpoint || endpointBlocked(endpoint)) continue;
-    try {
-      const res = await fetch(resultUrl(endpoint, swarm, jobId, task), { signal: AbortSignal.timeout(6_000), redirect: "error" });
-      if (!res.ok) continue;
-      const text = await readCapped(res, MAX_OUTPUT_BYTES);
-      if (text === null) continue;
-      if (keccak256(toBytes(text)) === agreed) return { host: run.host, text };
-    } catch {
-      // try the next host that agreed
-    }
-  }
-  return null;
+  const sources = runs
+    .filter((r) => r.result === agreed)
+    .flatMap((r) => {
+      const endpoint = activity.endpoints.get(r.host);
+      return endpoint ? [{ host: r.host, endpoint }] : [];
+    });
+  const check = await checkTaskOutput(swarm, jobId, task, agreed, sources);
+  return check.status === "verified" ? { host: check.host, text: new TextDecoder().decode(check.bytes) } : null;
 }
 
 function DownloadResults({
@@ -362,31 +356,4 @@ function DownloadResults({
       {progress ? `Fetching ${progress}` : "Download results"}
     </Button>
   );
-}
-
-/** Reads a response body, giving up past `max` bytes, so a host cannot exhaust the tab's memory. */
-async function readCapped(res: Response, max: number): Promise<string | null> {
-  const declared = Number(res.headers.get("content-length") ?? 0);
-  if (declared > max) return null;
-  const reader = res.body?.getReader();
-  if (!reader) return null;
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > max) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    all.set(c, at);
-    at += c.length;
-  }
-  return new TextDecoder().decode(all);
 }

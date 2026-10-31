@@ -37,6 +37,32 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_SWARM_KEEP_HOURS` | `72` | Hours a swarm job's outputs are kept for renters to fetch before they are deleted |
 | `GRID_SWARM_CHEAT` | off | `1` submits wrong results, to test tie-breaks on a local chain. Never use it elsewhere |
 
+## Availability
+
+Off unless you set it. Outside the window the node claims no new swarm tasks (tasks it already claimed finish, and their results are still committed and revealed) and marks the listing unavailable to new rentals. A rental that is already running is never cut short. The node checks once a minute.
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `GRID_HOURS` | unset (always) | Hours the machine is on offer, on a 24-hour clock in the machine's local time: `23-08` or `22:30-07:00`. The end is not included. A window may run past midnight and then belongs to the day it starts on |
+| `GRID_DAYS` | unset (all days) | Days the window applies to: `mon-fri`, `sat,sun`, `mon-wed,fri`, `fri-mon`, or `all`. With `GRID_HOURS=23-08` and `mon-fri` the machine is on offer from Friday 23:00 until Saturday 08:00. Without `GRID_HOURS` it means whole days |
+
+Times follow the machine's clock. To use another time zone, set `TZ` (for example `TZ=Europe/Berlin` in `node/.env`).
+
+The listing is only reopened when the node itself would list it open, so a node behind a router (swarm only) never opens its listing, and neither does a node that gave up on a rental until it restarts.
+
+## Self-pricing
+
+Off unless `GRID_AUTO_PRICE=1`. While the machine has had no rental for a full hour, the rental price on the listing is lowered by `GRID_PRICE_STEP` percent of itself, once for every further idle hour, never below `GRID_PRICE_FLOOR`. When a rental starts, the price goes back to `GRID_PRICE_PER_HOUR` for the next renter. Each change is one transaction, sent only when the price really changes, and it does not affect a running rental. The swarm minimum price works the same way in memory, with no transaction: it drops while no swarm task has been claimed for an hour and returns to `GRID_SWARM_MIN_PRICE` when one is claimed.
+
+Only time the machine is actually on offer counts as idle: hours outside `GRID_HOURS` and `GRID_DAYS`, and hours during a rental, do not lower the price. A restart starts the count again, at the full price.
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `GRID_AUTO_PRICE` | off | `1` turns self-pricing on |
+| `GRID_PRICE_STEP` | `3` | Percent taken off per idle hour, 0 to 100 |
+| `GRID_PRICE_FLOOR` | half of `GRID_PRICE_PER_HOUR` | Lowest ETH per hour for a direct rental |
+| `GRID_SWARM_MIN_PRICE_FLOOR` | half of `GRID_SWARM_MIN_PRICE` | Lowest ETH per run to accept for swarm work |
+
 ## Network
 
 | Setting | Default | Description |

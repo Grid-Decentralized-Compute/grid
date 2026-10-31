@@ -61,7 +61,10 @@ export function Caseback() {
           ) : (
             <span className="font-mono normal-case tracking-normal">GridMarket {shortAddr(deployment.GridMarket)}</span>
           ))}
-        <nav aria-label="Links" className="flex gap-6 sm:ml-auto">
+        <nav aria-label="Links" className="flex flex-wrap gap-x-6 gap-y-3 sm:ml-auto">
+          <Link href="/direct" className={linkClass}>
+            Direct rentals
+          </Link>
           <a href={X_URL} className={linkClass}>
             X
           </a>

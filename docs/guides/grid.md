@@ -9,6 +9,7 @@ GRID is the bond hosts post to stay listed. It is not used to pay for compute: r
 * **Slow to leave.** Unbonding takes seven days.
 * **At stake.** Part of a bond can be burned if the host is proven to have cheated a renter. Swarm tie-breaks record faults on-chain as evidence.
 * **Backable.** Anyone can bond on behalf of a host they trust with `bondFor`; the bond then belongs to the host.
+* **Cheaper to work.** The protocol fee on a host's earnings is 1% while bonded and 2% otherwise.
 
 ## Launch
 

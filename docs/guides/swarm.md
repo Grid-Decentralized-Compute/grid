@@ -23,6 +23,8 @@ Every task runs on two different hosts, which each submit the keccak256 hash of 
 * If all three disagree, the task fails and none of them is paid.
 * A host that takes a task and disappears loses it when its lease runs out; another host takes it over.
 
+Every finished task has a receipt at `gridcompute.net/receipt/<job>/<task>`: the two hosts that produced it, their result hashes, the deciding transaction, and a check that fetches the output and compares it with the hash on-chain. It proves two unrelated machines agreed on that output. Hosts receive the price per run less the protocol fee (2%, or 1% when bonded); the renter pays the price it posted.
+
 ## Rules for a good job
 
 * **Deterministic.** The same input must give byte-identical output on any machine. Pin the image by digest, fix random seeds, keep timestamps out of the output.

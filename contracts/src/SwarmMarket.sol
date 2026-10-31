@@ -13,7 +13,9 @@ import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 ///         breaks the tie: the two that agree are paid and the odd one out is recorded as a
 ///         fault. A host that commits and then does not reveal in time loses the run and gets a
 ///         fault. Whatever is not paid out goes back to the renter when the job is closed.
-///         Nobody operates this contract.
+///         A fixed protocol fee comes out of the host's side of every paid run and accrues to
+///         the treasury; the renter pays the price per run as posted. Nobody operates this
+///         contract.
 contract SwarmMarket {
     /// @dev Two replicas plus one tie-break.
     uint8 public constant RUNS = 3;
@@ -23,6 +25,10 @@ contract SwarmMarket {
     uint256 public constant MAX_ENDPOINT = 256;
     uint32 public constant MIN_LEASE = 60;
     uint32 public constant MAX_LEASE = 1 days;
+    /// @dev The protocol fee, in basis points of pricePerRun, taken from the host's side of each paid run.
+    uint256 public constant FEE_BPS = 200;
+    /// @dev The fee for a host that is bonded (StakeRegistry.isEligible) when the run is paid.
+    uint256 public constant BONDED_FEE_BPS = 100;
     /// @dev The ArbSys precompile; nothing lives there on anvil.
     address private constant ARB_SYS = address(100);
 
@@ -74,6 +80,8 @@ contract SwarmMarket {
     }
 
     IStakeRegistry public immutable stake;
+    /// @dev Where fees accrue. Meant to be the project treasury (a multisig); it withdraws like anyone.
+    address public immutable treasury;
 
     Job[] private _jobs;
     mapping(uint256 => mapping(uint32 => Task)) private _tasks;
@@ -99,6 +107,8 @@ contract SwarmMarket {
     event Fault(uint256 indexed jobId, uint32 indexed task, address indexed host, bytes32 result);
     event JobCancelled(uint256 indexed jobId);
     event JobClosed(uint256 indexed jobId, uint256 refunded);
+    /// @dev The protocol fee taken from one paid run.
+    event FeeAccrued(uint256 indexed jobId, uint32 task, address indexed host, uint256 amount);
     event WorkerRegistered(address indexed host, string endpoint);
     event Withdrawn(address indexed account, uint256 amount);
 
@@ -116,8 +126,12 @@ contract SwarmMarket {
     error TransferFailed();
     error BadRange();
 
-    constructor(IStakeRegistry stake_) {
+    error ZeroAddress();
+
+    constructor(IStakeRegistry stake_, address treasury_) {
+        if (treasury_ == address(0)) revert ZeroAddress();
         stake = stake_;
+        treasury = treasury_;
     }
 
     // ---------------------------------------------------------------- renters
@@ -443,8 +457,8 @@ contract SwarmMarket {
         if (r0.result == bytes32(0) || r1.result == bytes32(0)) return;
 
         if (r0.result == r1.result) {
-            _pay(job, r0.host);
-            _pay(job, r1.host);
+            _pay(job, jobId, t, r0.host);
+            _pay(job, jobId, t, r1.host);
             _finish(job, jobId, t, task, r0.result);
             return;
         }
@@ -454,8 +468,8 @@ contract SwarmMarket {
         }
         if (r2.result == r0.result || r2.result == r1.result) {
             (Run storage agree, Run storage odd) = r2.result == r0.result ? (r0, r1) : (r1, r0);
-            _pay(job, agree.host);
-            _pay(job, r2.host);
+            _pay(job, jobId, t, agree.host);
+            _pay(job, jobId, t, r2.host);
             faults[odd.host] += 1;
             emit Fault(jobId, t, odd.host, odd.result);
             _finish(job, jobId, t, task, r2.result);
@@ -473,9 +487,13 @@ contract SwarmMarket {
         emit TaskDone(jobId, t, result);
     }
 
-    function _pay(Job storage job, address host) internal {
-        balances[host] += job.pricePerRun;
+    /// @dev Pays a host for one accepted run, less the protocol fee, which accrues to the treasury.
+    function _pay(Job storage job, uint256 jobId, uint32 t, address host) internal {
+        uint256 fee = uint256(job.pricePerRun) * (stake.isEligible(host) ? BONDED_FEE_BPS : FEE_BPS) / 10_000;
+        balances[host] += job.pricePerRun - fee;
+        balances[treasury] += fee;
         job.paid += job.pricePerRun;
+        emit FeeAccrued(jobId, t, host, fee);
     }
 
     function _status(Task storage task) internal view returns (uint8) {

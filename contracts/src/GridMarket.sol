@@ -7,7 +7,9 @@ import {IStakeRegistry} from "./interfaces/IStakeRegistry.sol";
 /// @notice Nobody operates this contract: hosts list, renters pay the full rental
 ///         up front, and either side (or anyone, once the paid time is over) can
 ///         end the rental. The host is paid by the minute (see endRental) and the
-///         renter gets the rest back. All payouts are pulled with withdraw().
+///         renter gets the rest back. A fixed protocol fee comes out of the host's
+///         side of every payment and accrues to the treasury; the rate cannot be
+///         changed. All payouts are pulled with withdraw().
 contract GridMarket {
     struct Machine {
         address host;
@@ -49,8 +51,15 @@ contract GridMarket {
     uint256 public constant TRIAL_MAX_DEPOSIT = 0.01 ether;
     /// @dev Upper bound on a listing's metadata so a page of listings stays cheap to read.
     uint256 public constant MAX_METADATA = 1024;
+    /// @dev The protocol fee, in basis points of what a rental cost, taken from the host's side.
+    ///      Renters pay the listed price; the host receives it minus this fee.
+    uint256 public constant FEE_BPS = 200;
+    /// @dev The fee for a host that is bonded (StakeRegistry.isEligible) when the rental ends.
+    uint256 public constant BONDED_FEE_BPS = 100;
 
     IStakeRegistry public immutable stake;
+    /// @dev Where fees accrue. Meant to be the project treasury (a multisig); it withdraws like anyone.
+    address public immutable treasury;
 
     Machine[] private _machines;
     Rental[] private _rentals;
@@ -65,7 +74,9 @@ contract GridMarket {
     event Rented(
         uint64 indexed rentalId, uint64 indexed machineId, address indexed renter, uint64 paidHours, uint128 deposit
     );
-    event RentalEnded(uint64 indexed rentalId, uint64 indexed machineId, uint128 paidToHost, uint128 refunded);
+    event RentalEnded(
+        uint64 indexed rentalId, uint64 indexed machineId, uint128 paidToHost, uint128 fee, uint128 refunded
+    );
     event Withdrawn(address indexed account, uint256 amount);
 
     error NotHost();
@@ -80,9 +91,12 @@ contract GridMarket {
     error BadRange();
     error MetadataTooLong();
     error TrialCapExceeded();
+    error ZeroAddress();
 
-    constructor(IStakeRegistry stake_) {
+    constructor(IStakeRegistry stake_, address treasury_) {
+        if (treasury_ == address(0)) revert ZeroAddress();
         stake = stake_;
+        treasury = treasury_;
     }
 
     // ---------------------------------------------------------------- hosts
@@ -171,13 +185,15 @@ contract GridMarket {
         uint256 cost = uint256(r.pricePerHour) * minutesUsed / 60;
         if (cost > r.deposit) cost = r.deposit;
         uint256 refund = r.deposit - cost;
+        uint256 fee = cost * (stake.isEligible(m.host) ? BONDED_FEE_BPS : FEE_BPS) / 10_000;
 
         r.ended = true;
         m.activeRental = 0;
         activeRentalCount[m.host] -= 1;
-        balances[m.host] += cost;
+        balances[m.host] += cost - fee;
+        balances[treasury] += fee;
         if (refund > 0) balances[r.renter] += refund;
-        emit RentalEnded(rentalId, r.machineId, uint128(cost), uint128(refund));
+        emit RentalEnded(rentalId, r.machineId, uint128(cost - fee), uint128(fee), uint128(refund));
     }
 
     /// @notice Pull everything you are owed (host earnings and renter refunds).

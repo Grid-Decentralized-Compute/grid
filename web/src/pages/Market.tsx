@@ -26,22 +26,24 @@ const HEADLINE = "Decentralized compute network.";
 
 export type MarketMode = "direct" | "swarm";
 
+/** Swarm leads; direct rentals stay one tab away. */
 const MODES: { mode: MarketMode; href: string; title: string; line: string }[] = [
   {
-    mode: "direct",
-    href: "/",
-    title: "Direct",
-    line: "One machine, yours alone, with an SSH login. If its host goes offline, the rental stops and you pay only for the minutes used.",
-  },
-  {
     mode: "swarm",
-    href: "/swarm",
+    href: "/",
     title: "Swarm",
     line: "One job split into tasks and spread across many hosts. Each task runs on two machines and is paid only when their outputs match.",
+  },
+  {
+    mode: "direct",
+    href: "/direct",
+    title: "Direct",
+    line: "One machine, yours alone, with an SSH login. If its host goes offline, the rental stops and you pay only for the minutes used.",
   },
 ];
 
 export function Market({ mode }: { mode: MarketMode }) {
+  const index = MODES.findIndex((m) => m.mode === mode);
   return (
     <>
       <section className="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
@@ -60,9 +62,9 @@ export function Market({ mode }: { mode: MarketMode }) {
             ))}
           </h1>
           <p className="rise mt-6 max-w-[56ch] text-[16px] text-muted [animation-delay:90ms]">
-            People with GPUs list them at a price they set. People who need compute rent a machine by the hour, or post a
-            job that runs across many of them. Grid has no servers of its own: the ETH is held by contracts on Robinhood
-            Chain, and nodes reach each other directly over a peer-to-peer network.
+            Post a job and idle GPUs across the network run it, every task on two machines that have to agree before
+            anyone is paid. The ETH is held by contracts on Robinhood Chain, there is no company in between, and an AI
+            agent can use it with nothing but a wallet.
           </p>
           <div className="rise mt-10 [animation-delay:180ms]">
             <BlockTrack />
@@ -76,7 +78,7 @@ export function Market({ mode }: { mode: MarketMode }) {
         <span
           aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 hidden h-0.5 w-1/2 bg-steel transition-transform duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] sm:block"
-          style={{ transform: `translateX(${mode === "swarm" ? "100%" : "0%"})` }}
+          style={{ transform: `translateX(${index * 100}%)` }}
         />
         {MODES.map((m) => {
           const active = m.mode === mode;
@@ -99,6 +101,16 @@ export function Market({ mode }: { mode: MarketMode }) {
           );
         })}
       </div>
+
+      {mode === "direct" && (
+        <p className="mt-5 text-[13px] text-muted">
+          Direct rentals are for people who want one machine to themselves. Manage yours under{" "}
+          <Link href="/rentals" className={linkClass}>
+            Rentals
+          </Link>
+          .
+        </p>
+      )}
 
       {mode === "direct" ? <Machines /> : <Swarm />}
     </>

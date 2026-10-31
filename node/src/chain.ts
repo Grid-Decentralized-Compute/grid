@@ -11,6 +11,8 @@ export class Chain {
   readonly publicClient;
   readonly walletClient;
   private readonly market;
+  /** The write in flight or last sent; the next one waits for it. */
+  private sending: Promise<void> = Promise.resolve();
 
   constructor(private readonly config: Config) {
     this.account = privateKeyToAccount(config.privateKey);
@@ -109,9 +111,21 @@ export class Chain {
   }
 
   async setAvailable(id: bigint, available: boolean) {
+    await this.updateListing(id, { available });
+  }
+
+  /**
+   * Changes the price and/or availability of this host's listing and keeps everything else as it is
+   * on-chain. Nothing is sent when the listing already shows these values; returns whether a
+   * transaction was.
+   */
+  async updateListing(id: bigint, change: { price?: bigint; available?: boolean }): Promise<boolean> {
     const m = await this.getMachine(id);
-    if (m.available === available) return;
-    await this.send({ ...this.market, functionName: "updateMachine", args: [id, m.pricePerHour, available, m.metadata] });
+    const price = change.price ?? m.pricePerHour;
+    const available = change.available ?? m.available;
+    if (m.pricePerHour === price && m.available === available) return false;
+    await this.send({ ...this.market, functionName: "updateMachine", args: [id, price, available, m.metadata] });
+    return true;
   }
 
   async endRental(id: bigint) {
@@ -123,9 +137,16 @@ export class Chain {
    * 25% headroom: several hosts writing to the same contract in one block can each cost a little
    * more than the estimate made a moment earlier. `reserve` adds a fixed amount on top for calls
    * whose cost depends on what other hosts do first (a swarm submit that lands second has to
-   * settle every task it touches). Only gas actually used is paid for.
+   * settle every task it touches). Only gas actually used is paid for. Writes go out one at a time:
+   * the node sends from several loops (swarm work, the schedule, pricing) and one wallet has one nonce.
    */
-  async send(call: { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] }, reserve = 0n) {
+  send(call: { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] }, reserve = 0n) {
+    const turn = this.sending.then(() => this.sendNow(call, reserve));
+    this.sending = turn.then(() => {}, () => {});
+    return turn;
+  }
+
+  private async sendNow(call: { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] }, reserve: bigint) {
     const request = { ...call, account: this.account } as Parameters<Chain["publicClient"]["estimateContractGas"]>[0];
     const gas = await this.publicClient.estimateContractGas(request);
     const headroom = (gas * 5n) / 4n;

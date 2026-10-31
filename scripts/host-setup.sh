@@ -191,7 +191,7 @@ PUBLIC_IP="${PUBLIC_IP:-$(curl -4 -fsS https://www.cloudflare.com/cdn-cgi/trace 
 if sudo test -f "$ENV_FILE"; then
   note "keeping the existing $ENV_FILE"
 else
-  key="$(cd "$GRID_DIR" && as_grid node --input-type=module -e 'import { generatePrivateKey } from "viem/accounts"; console.log(generatePrivateKey())')"
+  key="${GRID_PRIVATE_KEY:-$(cd "$GRID_DIR" && as_grid node --input-type=module -e 'import { generatePrivateKey } from "viem/accounts"; console.log(generatePrivateKey())')}"
   sudo -u "$GRID_USER" bash -c "umask 077; cat > '$ENV_FILE'" <<EOF
 # Written by scripts/host-setup.sh. Robinhood Chain testnet. Keep this file private: it holds the
 # host wallet's key, and the ETH this machine earns is paid to that wallet. Back it up somewhere safe.

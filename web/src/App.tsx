@@ -9,29 +9,43 @@ import { Host } from "./pages/Host";
 import { JobPage } from "./pages/Job";
 import { Legal } from "./pages/Legal";
 import { Market } from "./pages/Market";
+import { NetworkPage } from "./pages/Network";
+import { ReceiptPage } from "./pages/Receipt";
 import { Rentals } from "./pages/Rentals";
 import { Link, scrollToHash, usePath } from "./router";
 
 type PageDef = { label: string; title: string; nav: boolean; render: () => ReactNode };
 
+// The navigation lists the pages with nav: true, in this order.
 const pages: Record<string, PageDef> = {
-  "/": { label: "Market", title: "Grid · Decentralized compute", nav: true, render: () => <Market mode="direct" /> },
-  "/swarm": { label: "Market", title: "Swarm · Grid", nav: false, render: () => <Market mode="swarm" /> },
-  "/rentals": { label: "Rentals", title: "Rentals · Grid", nav: true, render: () => <Rentals /> },
+  "/": { label: "Market", title: "Grid · Decentralized compute", nav: true, render: () => <Market mode="swarm" /> },
+  "/network": { label: "Network", title: "Network · Grid", nav: true, render: () => <NetworkPage /> },
   "/host": { label: "Host", title: "Host · Grid", nav: true, render: () => <Host /> },
   "/about": { label: "About", title: "About · Grid", nav: true, render: () => <About /> },
+  "/direct": { label: "Market", title: "Direct · Grid", nav: false, render: () => <Market mode="direct" /> },
+  "/rentals": { label: "Rentals", title: "Rentals · Grid", nav: false, render: () => <Rentals /> },
   "/legal": { label: "Legal", title: "Legal · Grid", nav: false, render: () => <Legal /> },
 };
 
 export default function App() {
   const path = usePath();
-  const clean = path.replace(/\/+$/, "") || "/";
+  const trimmed = path.replace(/\/+$/, "") || "/";
+  // Swarm jobs used to live at /swarm; they are the homepage now, and old links still land there.
+  const clean = trimmed === "/swarm" ? "/" : trimmed;
   const job = clean.match(/^\/jobs\/(\d+)$/);
+  const receipt = clean.match(/^\/receipt\/(\d+)\/(\d+)$/);
   const page: PageDef | undefined = job
     ? { label: "Market", title: `Job ${job[1]} · Grid`, nav: false, render: () => <JobPage id={BigInt(job[1])} /> }
-    : pages[clean];
-  // The swarm and job pages live under Market in the navigation.
-  const navActive = clean === "/swarm" || job ? "/" : clean;
+    : receipt
+      ? {
+          label: "Market",
+          title: "Receipt · Grid",
+          nav: false,
+          render: () => <ReceiptPage jobId={BigInt(receipt[1])} task={Number(receipt[2])} />,
+        }
+      : pages[clean];
+  // The direct market, its rentals, jobs and receipts live under Market in the navigation.
+  const navActive = clean === "/direct" || clean === "/rentals" || job || receipt ? "/" : clean;
 
   useEffect(() => {
     document.title = page?.title ?? "Not found · Grid";
@@ -84,7 +98,7 @@ export default function App() {
 
       <main className="flex-1 pb-28 pt-12 sm:pt-20">
         {/* Direct and Swarm are one page, so switching between them keeps it mounted. */}
-        <ErrorBoundary key={clean === "/swarm" ? "/" : clean}>
+        <ErrorBoundary key={clean === "/direct" ? "/" : clean}>
           {page ? (
             page.render()
           ) : (
