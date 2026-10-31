@@ -153,10 +153,17 @@ export function About() {
 
       <H2>GRID</H2>
       <p>
-        GRID is the bond hosts post to stay listed. It is not required for a host's first 30 days, but until a host is
-        bonded each rental is capped at 0.01 ETH. A bond cannot be withdrawn while one of the host's rentals is running,
-        takes seven days to unlock, and can be slashed if the host is shown to have cheated a renter. A bonded host also
-        pays the lower fee. Rentals are always paid in ETH; renters never need GRID.
+        GRID is Grid's work token: the stake a host puts up to be allowed to earn on the network. It has four roles. A
+        host locks it to serve and loses part of it if it cheats. A bonded host keeps 99% of what it earns instead of
+        98%. The protocol's fee income buys GRID and burns it, so a busy network removes coins from supply, as treasury
+        policy at first and by contract once the pool exists. And its holders will set the bond, the fee discount and
+        the slasher, where a multisig does today. Rentals are always paid in ETH; renters never need GRID.
+      </p>
+      <p>
+        A bond is not required for a host's first 30 days, but until a host is bonded each rental is capped at 0.01
+        ETH. It cannot be withdrawn while one of the host's rentals is running, takes seven days to unlock, and can be
+        slashed if the host is shown to have cheated a renter. Planned after the audit: a bond that scales with what a
+        host earns, a larger bond to break ties, fee tiers, and slashes that pay the renter who was cheated.
       </p>
       <p>
         GRID will launch on Creora alongside the Robinhood Chain launch: a fixed supply of one billion, sold on a
