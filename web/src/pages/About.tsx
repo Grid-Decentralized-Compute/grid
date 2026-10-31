@@ -159,8 +159,9 @@ export function About() {
         pays the lower fee. Rentals are always paid in ETH; renters never need GRID.
       </p>
       <p>
-        GRID will launch on Creora alongside the Robinhood Chain launch, with the entire supply on the bonding curve and
-        no allocation to the team.
+        GRID will launch on Creora alongside the Robinhood Chain launch: a fixed supply of one billion, sold on a
+        bonding curve and then traded in a pool whose liquidity is locked for good. There is no allocation to the team;
+        the supply goes to the curve and the pool, less the launchpad's own share.
       </p>
 
       <H2>Source</H2>

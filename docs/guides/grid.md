@@ -13,7 +13,7 @@ GRID is the bond hosts post to stay listed. It is not used to pay for compute: r
 
 ## Launch
 
-GRID launches on the Creora launchpad with the Robinhood Chain launch. The whole supply goes on the bonding curve, and there is no team allocation. Until then, test networks use a stand-in token that anyone can mint.
+GRID launches on the Creora launchpad with the Robinhood Chain launch: a fixed supply of one billion, sold on a bonding curve and then traded in a Uniswap pool whose liquidity is locked for good. There is no team allocation; the supply goes to the curve and the pool, less the launchpad's own share. The launch is made from the Grid treasury, which is also where the launchpad's creator fees go. Until then, test networks use a stand-in token that anyone can mint.
 
 ## What GRID is not
 
