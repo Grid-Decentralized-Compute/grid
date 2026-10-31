@@ -15,5 +15,12 @@ export const deployments: Record<number, Deployment> = {
     "GridMarket": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
     "StakeRegistry": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
     "SwarmMarket": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+  },
+  "46630": {
+    "AllowanceFactory": "0xb09906A3c5DEFA826c02e0aE7664d83b0706F83E",
+    "GRID": "0x213e0cACc4631e5D6f7D407a35d6776A91d309ff",
+    "GridMarket": "0x73D10F68a385c697A39d71cCBB5731Ac83A5Dc70",
+    "StakeRegistry": "0xC5df547D4EBAf5eBF953104d80818b1973A6e119",
+    "SwarmMarket": "0x2f6dFBBE89961800975C78fEf9600F9618165f97"
   }
 };
