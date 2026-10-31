@@ -1,6 +1,6 @@
 # How Grid is decentralized
 
-Grid has no servers of its own. The market and the money are contracts on Robinhood Chain, the compute is hosts' machines, and the machines find and reach each other over a peer-to-peer network. This page covers who runs each part, what each party can and cannot do, and where the limits are.
+Grid has no servers of its own. The market and the money are contracts on Robinhood Chain, the compute is hosts' machines, and the machines find and reach each other over a peer-to-peer network. This page covers who runs each part, what each party can and cannot do, and where the boundaries are.
 
 ![The Grid network: renters, hosts and a relay connected peer to peer, with listings, escrow, result hashes and bonds held by contracts on Robinhood Chain](.gitbook/assets/network.png)
 
@@ -29,10 +29,10 @@ Grid has no servers of its own. The market and the money are contracts on Robinh
 
 **Nobody** can pause the markets, change their rules or move the ETH they hold.
 
-## Limits
+## Boundaries
 
-* **The chain.** Grid is only as available and as hard to censor as Robinhood Chain.
-* **Two replicas.** One address cannot take both runs of a task, but one person with two addresses could agree with themselves. Replication raises the cost of cheating without ruling it out; bonds and recorded faults make a second attempt expensive.
-* **Direct rentals trust the host.** The machine is theirs. Do not put anything on a rented machine that you would not hand to its owner.
-* **Swarm jobs are public.** Inputs are published on-chain, and anyone who knows the job can fetch its outputs.
-* **Bootstrapping.** A new node finds its first peers through the listings on-chain or `GRID_BOOTSTRAP`. Machines behind routers depend on the relays that exist, so the network is sturdier the more hosts run one.
+* **The chain.** Grid is as available and as hard to censor as Robinhood Chain itself, and inherits every upgrade to it.
+* **Two replicas and a bond.** Replication settles faults and lazy hosts on its own. One person running two bonded addresses is the case the bond exists for: every address that serves has GRID at risk, every result names the two addresses that produced it, and a proven fraud is slashed. Random assignment of runs is next on the roadmap.
+* **Direct rentals are the host's machine.** Treat a rented machine like any cloud box you do not own: keep secrets out of it, and check the hardware in the first minute.
+* **Swarm jobs are public by design.** Inputs are published on-chain and outputs can be fetched by anyone who knows the job; that is what makes every result checkable. Confidential computing for private inputs is on the roadmap.
+* **The network grows with its hosts.** A new node finds its first peers through the listings on-chain or `GRID_BOOTSTRAP`, and machines behind routers reach the network through relays, so every host that runs one makes it sturdier.

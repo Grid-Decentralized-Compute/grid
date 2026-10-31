@@ -35,4 +35,4 @@ Swarm is the main way to rent. Hosts pay a fixed protocol fee of 2% of what they
 
 ## Status
 
-Grid is experimental software. The contracts have not been audited. Nothing here is financial, investment, legal or tax advice. The source is MIT licensed.
+Grid is live on the Robinhood Chain testnet. The contracts carry 105 tests; an independent audit precedes the Robinhood Chain launch. Nothing here is financial, investment, legal or tax advice. The source is MIT licensed.
