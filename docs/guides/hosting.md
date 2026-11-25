@@ -21,6 +21,35 @@ GRID_PUBLIC_URL=https://node1.example.com bash host-setup.sh
 
 The node runs as its own `grid` system user from `/opt/grid` under a locked-down systemd service, never as your account. Renters' containers get their own docker network, and firewall rules (restored at every boot) stop them reaching your LAN, your router or the machine itself. The script refuses an NVIDIA Container Toolkit older than 1.17.8, which has public container-escape bugs, and turns on automatic security updates. Set `GRID_REF` to a tag or commit to run exactly a version you have reviewed. It is safe to run again. Its settings and every step are described at the top of [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh).
 
+## Several GPUs in one machine
+
+A machine with several cards runs one host per card. Each host has its own wallet, listing and bond, takes one GPU and an equal part of the machine's memory and CPU, and works independently of the others. The cards can then be rented one by one, and for swarm work each card is a host of its own, with its own bond at stake.
+
+Put `{n}` in the address and the same script sets up every card:
+
+```bash
+GRID_PUBLIC_URL='https://rig1-{n}.example.com' bash host-setup.sh
+```
+
+On a machine with six cards this gives `rig1-1` to `rig1-6`, one host each, all served by a single tunnel. Keep `{n}` in the first label of the name (`rig1-{n}.example.com`, not `gpu{n}.rig1.example.com`): Cloudflare's free certificate covers one level of subdomain.
+
+| | Host *n* |
+| --- | --- |
+| Settings | `/opt/grid/node/hosts/<n>.env` |
+| Service | `grid-node@<n>` |
+| API | port 7776 + *n* on loopback, reached through the tunnel |
+| Renters' SSH | port 2221 + *n* |
+| Peer to peer | port 4000 + *n* |
+
+* **One card each.** A host is tied to its card by the card's UUID (`GRID_GPU`). Its containers see that card and no other, and it keeps pointing at the same card when another one is moved or removed.
+* **A fair share.** `GRID_SHARE` is set to the number of hosts. Each host gives its containers that share of the memory and CPU and lists that share of the RAM and disk, which is what a renter gets. Size the machine's RAM for it: a job that loads a model needs about the model's size in RAM, on every card at once.
+* **A wallet each.** Every host wallet needs test ETH and, where bonding is on, its own bond. The script prints the addresses. To use wallets prepared in advance, pass `GRID_KEYS_FILE`, a file with one key per line (host *n* takes line *n*); it is deleted once the keys are stored.
+* **Fewer hosts.** `GRID_HOSTS=3` sets up only the first three cards.
+* **Swarm only.** `GRID_DIRECT=0` keeps the hosts out of direct rentals. Nothing needs forwarding on the router then, and the machine's IP address is not published. For direct rentals, forward the SSH and peer-to-peer ports of every host.
+* **Your Cloudflare login stays home.** Create the tunnel and its DNS records on your own computer and pass the tunnel's credentials file as `GRID_TUNNEL_CREDENTIALS`. The machine then holds the credentials of that one tunnel and nothing else.
+
+Follow one host with `journalctl -u grid-node@3 -f`, or all of them with `journalctl -u 'grid-node*' -f`.
+
 ## Windows (WSL2)
 
 Most gaming PCs run Windows. One PowerShell script turns such a PC into a Grid host: it installs WSL2 and Ubuntu 24.04, then runs [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh) inside Ubuntu from a fresh clone of the repository, so the node, Docker and the NVIDIA Container Toolkit end up set up exactly as on a Linux machine. The NVIDIA driver stays on Windows. WSL2 passes the GPU through to Ubuntu, and no Linux driver is installed. Docker Desktop is not used.
@@ -125,9 +154,21 @@ At startup the node runs `nvidia-smi` inside the rental image and refuses to lis
 
 ## What the node does
 
-* **Direct rental:** starts a container from `GRID_DOCKER_IMAGE` with `--gpus all`, hands the renter an SSH login, and settles on-chain when the paid time is up. Stopping the node leaves a running rental's container up; the node adopts it again when it returns.
-* **Swarm:** while the machine is not rented, claims small batches of tasks, runs each in a throwaway container with no network, keeps the output and submits its hash.
+* **Direct rental:** starts a container from `GRID_DOCKER_IMAGE` with the host's GPUs (every card, or its one card when `GRID_GPU` is set), hands the renter an SSH login, and settles on-chain when the paid time is up. Stopping the node leaves a running rental's container up; the node adopts it again when it returns.
+* **Swarm:** while the machine is not rented, claims small batches of tasks, runs each in a throwaway container with no network, keeps the output and submits its hash. It downloads a job's image before it claims the job's tasks, so a task always starts the moment it is claimed.
 * **Network:** keeps libp2p connections to other nodes and announces itself every 15 seconds.
+
+## What a host publishes
+
+A listing is public and permanent, so the node puts nothing personal in it:
+
+* the name you chose with `GRID_NAME` (never the computer's hostname), the GPU model and memory, the CPU model, the RAM and disk sizes, and the operating system family;
+* the https address of the node's API;
+* its peer-to-peer address when it takes direct rentals, which is the machine's public IP unless you announce a DNS name. A swarm-only host (`GRID_DIRECT=0`, or no `GRID_PUBLIC_URL`) publishes no IP address: its API is reached through the tunnel or a relay.
+
+The address and port for SSH go only to the renter of the machine, in reply to a request signed by their wallet. The host wallet's address is public, as on any chain, and the peers and the RPC endpoint a node connects to see the address it connects from, as with any program on the internet.
+
+Swarm jobs are public as well: a job's image, command and task inputs are posted on-chain, and its outputs are served to anyone who asks for them. Keep private data out of jobs.
 
 ## Bond and earnings
 

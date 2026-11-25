@@ -62,7 +62,7 @@ export type MachineMetadata = {
   os: string;
   /**
    * Base URL of the host node's HTTP API, e.g. https://gpu.example.com. It must be https://
-   * (plain http:// only on localhost): renters fetch their SSH password over it, and a web app
+   * (plain http:// only on localhost): renters send their SSH key and get the host keys over it, and a web app
    * served over https cannot call an http:// host at all. A node behind NAT publishes its relay's
    * gateway, <relay>/p2p/<peer id>.
    */

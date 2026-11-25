@@ -1,6 +1,6 @@
 # Node configuration
 
-The node reads these settings from its environment or from `node/.env` (start from `node/env.example`). Every one has a default that works on a local chain.
+The node reads these settings from its environment or from `node/.env` (start from `node/env.example`). Every one has a default that works on a local chain. On a machine set up with one host per GPU, each host has its own file, `/opt/grid/node/hosts/<n>.env`.
 
 ## Chain and wallet
 
@@ -21,10 +21,20 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_BIND` | `0.0.0.0` | Address the API listens on. `127.0.0.1` when it is only reached through a local tunnel (the setup script sets this) |
 | `GRID_PUBLIC_URL` | unset | Where renters reach the API; must be https off a local chain. Unset (or `none`) means behind a router: reached through a relay, swarm only |
 | `GRID_ALLOW_HTTP` | unset | `1` accepts a plain http `GRID_PUBLIC_URL`. For experiments only |
+| `GRID_DIRECT` | on | `0` keeps a node that has a `GRID_PUBLIC_URL` swarm only: its listing stays closed to rentals. For a host whose API is reached through a tunnel and whose SSH port is not forwarded |
 | `GRID_SSH_HOST` | host of `GRID_PUBLIC_URL` | Where renters SSH in |
 | `GRID_SSH_PORT` | `2222` | SSH port mapped to the rental container |
 | `GRID_DOCKER_IMAGE` | `lscr.io/linuxserver/openssh-server:latest` | Image for direct-rental containers. GPU hosts need a CUDA image: build `node/rental-image` and set `grid-rental` |
 | `GRID_SIMULATE` | auto | `1` runs without Docker or a GPU, for trying the market. Unset detects both |
+
+## Several nodes on one machine
+
+A machine with several GPUs runs one node per card, each with its own wallet, listing and bond. [`scripts/host-setup.sh`](https://github.com/Grid-Decentralized-Compute/grid/blob/main/scripts/host-setup.sh) sets this up when `GRID_PUBLIC_URL` contains `{n}` ([Running a node](../guides/hosting.md#several-gpus-in-one-machine)). By hand, give every node its own `GRID_PRIVATE_KEY`, `GRID_PORT`, `GRID_SSH_PORT`, `GRID_P2P_PORT` and `GRID_STATE_DIR` besides these two:
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `GRID_GPU` | unset (every GPU) | The one GPU this node offers: its UUID (`GPU-...`) or index as `nvidia-smi -L` prints them. A UUID keeps pointing at the same card when another is moved or removed. The node's containers see that card and no other, and the node stops with a clear message if the card is missing |
+| `GRID_SHARE` | `1` | How many Grid nodes run on this machine. Each gives its containers that share of the memory and CPU, lists that share of the RAM and disk, and cleans up only its own containers after a restart |
 
 ## Swarm
 
@@ -33,6 +43,7 @@ The node reads these settings from its environment or from `node/.env` (start fr
 | `GRID_SWARM` | on | `0` keeps the node out of the swarm |
 | `GRID_SWARM_MIN_PRICE` | `0` | Lowest ETH per run to accept |
 | `GRID_SWARM_BATCH` | `4` | Tasks claimed per round, 1 to 32 |
+| `GRID_SWARM_MEMORY_GB` | `8` | Memory a swarm task may use. A task that loads a model needs about the model's size. Never more than the node's share of the machine (`GRID_SHARE`) |
 | `GRID_SWARM_NETWORK` | off | `1` lets task containers reach the network, including this machine's LAN. Leave it off unless you trust the jobs |
 | `GRID_SWARM_KEEP_HOURS` | `72` | Hours a swarm job's outputs are kept for renters to fetch before they are deleted |
 | `GRID_SWARM_CHEAT` | off | `1` submits wrong results, to test tie-breaks on a local chain. Never use it elsewhere |
@@ -68,7 +79,7 @@ Only time the machine is actually on offer counts as idle: hours outside `GRID_H
 | Setting | Default | Description |
 | --- | --- | --- |
 | `GRID_P2P_PORT` | `4001` | TCP port for libp2p |
-| `GRID_P2P_ANNOUNCE` | derived from `GRID_PUBLIC_URL` | Comma-separated multiaddrs other peers should dial |
+| `GRID_P2P_ANNOUNCE` | derived from `GRID_PUBLIC_URL` | Comma-separated multiaddrs other peers should dial. `none` publishes no address, for a swarm-only host behind a tunnel |
 | `GRID_BOOTSTRAP` | none | Comma-separated multiaddrs ending in `/p2p/<peer id>`, dialled besides the peers listed on-chain |
 | `GRID_RELAY` | off | `1` makes this node a relay for peers behind routers. Needs `GRID_PUBLIC_URL` |
 | `GRID_ALLOW_PRIVATE_PEERS` | off | `1` lets the node dial peers on private networks. Always on for a local Anvil chain; leave it off elsewhere |
