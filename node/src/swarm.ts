@@ -1,7 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, rmSync, statfsSync, statSync, writeFileSync } from "node:fs";
-import os from "node:os";
 import { join } from "node:path";
 import { type Address, formatEther, keccak256, parseEventLogs, toBytes, zeroHash } from "viem";
 import {
@@ -15,6 +14,7 @@ import {
 } from "@grid/shared";
 import type { Chain } from "./chain";
 import type { Config } from "./config";
+import { gpuArgs, hostLabel, ownFilter, slice } from "./gpu";
 import { log } from "./log";
 import { IdlePrice } from "./pricing";
 import { isOpenAt } from "./schedule";
@@ -36,6 +36,9 @@ const MIN_FREE_BYTES = 10 * 2 ** 30;
  * It is weighed against what the host receives, which is the price per run less the protocol fee.
  */
 const GAS_PER_TASK = 250_000n;
+/** The longest a first download of a job's image may take, and how long a failed one waits before another try. */
+const IMAGE_PULL_MS = 45 * 60_000;
+const IMAGE_RETRY_MS = 10 * 60_000;
 /** How often a running task checks whether a direct rental has started and it must make way. */
 const YIELD_CHECK_MS = 5_000;
 
@@ -351,6 +354,7 @@ export class SwarmWorker {
       }
       const manifest = await this.manifest(id, job.postedBlock, job.manifestHash);
       if (!manifest || (manifest.gpu && !this.hasGpu)) continue;
+      if (this.docker && !this.imageReady(manifest.image)) continue;
 
       // Scan the job in windows, remembering where the last search stopped.
       let from = this.cursors.get(id) ?? 0;
@@ -390,6 +394,39 @@ export class SwarmWorker {
     return manifest;
   }
 
+  /** Images known to be on this machine, being fetched, or that could not be fetched. */
+  private readonly images = new Map<string, { state: "ready" | "pulling" | "failed"; at: number }>();
+
+  /**
+   * True when the job's image is on this machine. When it is not, it is fetched in the background and the
+   * job is taken up on a later round. A task is claimed only once it can start at once: the first download
+   * of a large image (a CUDA image is several GB) must never eat into a lease, or every host that claimed
+   * would time out together and agree on that error.
+   */
+  private imageReady(image: string): boolean {
+    const known = this.images.get(image);
+    if (known?.state === "ready") return true;
+    if (known?.state === "pulling") return false;
+    if (known?.state === "failed" && Date.now() - known.at < IMAGE_RETRY_MS) return false;
+    this.images.set(image, { state: "pulling", at: Date.now() });
+    execFile("docker", ["image", "inspect", "--format", "{{.Id}}", image], { env: dockerEnv() }, (missing) => {
+      if (!missing) {
+        this.images.set(image, { state: "ready", at: Date.now() });
+        return;
+      }
+      log(`swarm: fetching image ${image} before taking its tasks`);
+      execFile("docker", ["pull", "--quiet", image], { env: dockerEnv(), timeout: IMAGE_PULL_MS }, (err) => {
+        this.images.set(image, { state: err ? "failed" : "ready", at: Date.now() });
+        log(
+          err
+            ? `swarm: could not fetch image ${image}, trying again in ${IMAGE_RETRY_MS / 60_000} min: ${err.message.split("\n")[0]}`
+            : `swarm: image ${image} is here — taking its tasks`,
+        );
+      });
+    });
+    return false;
+  }
+
   /** Runs one task. Null when it was stopped to make way for a direct rental. */
   private async run(manifest: SwarmManifest, input: string, task: number, timeoutMs: number): Promise<Uint8Array | null> {
     let output: Uint8Array | null;
@@ -413,15 +450,19 @@ export class SwarmWorker {
    */
   private container(manifest: SwarmManifest, input: string, timeoutMs: number): Promise<Uint8Array | null> {
     const name = `grid-swarm-${randomBytes(6).toString("hex")}`;
+    // A task gets GRID_SWARM_MEMORY_GB (8 GB unless set) and up to 4 CPUs; nodes sharing the machine
+    // (GRID_SHARE) stay inside their own part, so six hosts on one rig cannot starve each other.
+    const { memMb, cpus } = slice(this.config.share);
+    const memory = `${this.config.share > 1 ? Math.min(this.config.swarmMemoryMb, memMb) : this.config.swarmMemoryMb}m`;
     const args = [
-      "run", "--rm", "-i", "--name", name,
-      "--memory", "8g", "--memory-swap", "8g", "--pids-limit", "512",
-      "--cpus", String(Math.max(1, Math.min(4, os.cpus().length - 1))),
+      "run", "--rm", "-i", "--name", name, "--label", hostLabel(this.config.hostAddress),
+      "--memory", memory, "--memory-swap", memory, "--pids-limit", "512",
+      "--cpus", String(Math.max(1, Math.min(4, cpus))),
       "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
       "--ulimit", "core=0", "--log-driver", "none",
     ];
     if (!this.config.swarmNetwork) args.push("--network", "none");
-    if (manifest.gpu) args.push("--gpus", "all");
+    if (manifest.gpu) args.push(...gpuArgs(this.config.gpu));
     args.push(manifest.image, "sh", "-c", manifest.command);
 
     return new Promise((resolve) => {
@@ -477,7 +518,7 @@ export class SwarmWorker {
   async sweep() {
     if (!this.docker) return;
     await new Promise<void>((done) => {
-      execFile("docker", ["ps", "-aq", "--filter", "name=^grid-swarm-"], { env: dockerEnv() }, (err, stdout) => {
+      execFile("docker", ["ps", "-aq", "--filter", "name=^grid-swarm-", ...ownFilter(this.config)], { env: dockerEnv() }, (err, stdout) => {
         const ids = err ? [] : stdout.split("\n").filter(Boolean);
         if (ids.length === 0) return done();
         log(`swarm: removing ${ids.length} leftover task container(s)`);

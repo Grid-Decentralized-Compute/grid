@@ -22,7 +22,7 @@ async function main() {
   const sessions = new SessionManager(config);
   await sessions.init();
 
-  const hardware = await probeHardware(config.simulate === true);
+  const hardware = await probeHardware(config.simulate === true, config.gpu, config.share);
 
   log(`host ${chain.address} on ${config.chain.name} (chain ${config.chain.id}), market ${config.market}`);
   log(
@@ -49,13 +49,14 @@ async function main() {
   setInterval(() => void refreshRelays(), 60_000);
 
   // Where renters reach this node: its own URL, or the gateway of a relay it is connected to.
-  const direct = config.publicUrl !== null;
+  // `direct` is whether it takes direct rentals at all: with GRID_DIRECT=0 it has a URL but stays swarm-only.
+  const direct = config.direct;
   const reachableAt = () => {
     if (config.publicUrl) return config.publicUrl;
     const relay = p2p.connectedRelay(listedRelays);
     return relay ? `${relay}/p2p/${p2p.peerId}` : null;
   };
-  if (!direct) {
+  if (config.publicUrl === null) {
     log("p2p: no public address — looking for a relay");
     for (let i = 0; i < 30 && !reachableAt(); i++) await sleep(1_000);
   }
@@ -96,7 +97,11 @@ async function main() {
   const machineId = await chain.ensureListed(metadataFor(endpoint), listedPrice, listedOpen);
   log(
     `listed as machine #${machineId}, reachable at ${endpoint ?? "nowhere yet"}` +
-      (direct ? `, ssh via ${config.sshHost}:${config.sshPort}` : " (swarm only: no public address for SSH)"),
+      (direct
+        ? `, ssh via ${config.sshHost}:${config.sshPort}`
+        : config.publicUrl
+          ? " (swarm only: GRID_DIRECT=0)"
+          : " (swarm only: no public address for SSH)"),
   );
 
   // Containers from an earlier run are stale unless their rental is still running on-chain.

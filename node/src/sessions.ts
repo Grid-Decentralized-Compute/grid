@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import os from "node:os";
 import { promisify } from "node:util";
 import { type AccessInfo, normalizeSshKey, sshCommand } from "@grid/shared";
 import type { Config } from "./config";
+import { gpuArgs, hostLabel, ownFilter, slice } from "./gpu";
 import { log } from "./log";
 
 const run = promisify(execFile);
@@ -84,7 +84,7 @@ export class SessionManager {
     if (!this.docker) return;
     const image = this.config.dockerImage;
     try {
-      const { stdout } = await run("docker", ["run", "--rm", "--gpus", "all", "--entrypoint", "nvidia-smi", image, "-L"], { env: dockerEnv() });
+      const { stdout } = await run("docker", ["run", "--rm", ...gpuArgs(this.config.gpu), "--entrypoint", "nvidia-smi", image, "-L"], { env: dockerEnv() });
       log(`GPU works inside ${image}: ${stdout.trim().split("\n")[0]}`);
     } catch (e) {
       throw new Error(
@@ -98,7 +98,7 @@ export class SessionManager {
   /** Removes rental containers left behind by an earlier run, except the one for `keep` (still rented). */
   async sweep(keep: bigint | null) {
     if (!this.docker) return;
-    const { stdout } = await run("docker", ["ps", "-a", "--filter", "name=^grid-rental-", "--format", "{{.ID}} {{.Names}}"], { env: dockerEnv() });
+    const { stdout } = await run("docker", ["ps", "-a", "--filter", "name=^grid-rental-", ...ownFilter(this.config), "--format", "{{.ID}} {{.Names}}"], { env: dockerEnv() });
     for (const line of stdout.split("\n")) {
       const [id, name] = line.trim().split(/\s+/);
       if (!id) continue;
@@ -131,13 +131,14 @@ export class SessionManager {
         // down with it (memory, processes, CPU, logs), and the isolated network keeps them off
         // the host's LAN. Logins are by SSH key only: there is no password anywhere, and the
         // renter's key is added when they ask for access (authorize).
-        const memMb = Math.max(1024, Math.floor((os.totalmem() * 0.8) / 2 ** 20));
+        // Several nodes on one machine (GRID_SHARE) each give their renter an equal part of it.
+        const { memMb, cpus } = slice(this.config.share);
         const args = [
-          "run", "-d", "--name", name,
+          "run", "-d", "--name", name, "--label", hostLabel(this.config.hostAddress),
           "-p", `${port}:2222`,
           "--pids-limit", "4096",
           "--memory", `${memMb}m`, "--memory-swap", `${memMb}m`,
-          "--cpus", String(Math.max(1, os.cpus().length - 1)),
+          "--cpus", String(cpus),
           "--shm-size", `${Math.min(8192, Math.floor(memMb / 2))}m`,
           "--ulimit", "core=0",
           "--cap-drop", "NET_RAW", "--cap-drop", "MKNOD", "--cap-drop", "AUDIT_WRITE", "--cap-drop", "SETFCAP",
@@ -147,7 +148,7 @@ export class SessionManager {
           "-e", `USER_NAME=${user}`,
           "-e", "PASSWORD_ACCESS=false", "-e", "SUDO_ACCESS=true",
         ];
-        if (gpu) args.push("--gpus", "all");
+        if (gpu) args.push(...gpuArgs(this.config.gpu));
         args.push(this.config.dockerImage);
         const { stdout } = await run("docker", args, { env: dockerEnv() });
         containerId = stdout.trim();

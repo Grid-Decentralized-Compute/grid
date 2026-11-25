@@ -1,12 +1,16 @@
 import { resolve } from "node:path";
 import { type Address, formatEther, isAddress, parseEther } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { chainById, deployments, type GridChain, isSecureEndpoint } from "@grid/shared";
+import { GPU_ID } from "./gpu";
 import { parseSchedule, type Schedule } from "./schedule";
 
 export type Config = {
   chain: GridChain;
   rpcUrl: string;
   privateKey: `0x${string}`;
+  /** The host wallet's address. */
+  hostAddress: Address;
   market: Address;
   stake: Address;
   name: string;
@@ -17,12 +21,27 @@ export type Config = {
    * gateway instead, and cannot take direct SSH rentals.
    */
   publicUrl: string | null;
+  /**
+   * false = swarm work only, even with a public URL (GRID_DIRECT=0): the listing stays closed to rentals.
+   * For hosts whose API is reachable through a tunnel but whose SSH port is not forwarded.
+   */
+  direct: boolean;
   /** Hostname renters SSH into (defaults to the public URL's host). */
   sshHost: string;
   sshPort: number;
   /** true = fake GPU, no containers; false = require docker; "auto" = use docker when present */
   simulate: boolean | "auto";
   dockerImage: string;
+  /**
+   * The one GPU this node offers (GRID_GPU: an nvidia-smi index or, better, a UUID). null = every GPU in
+   * the machine. A rig with several cards runs one node per card, each with its own wallet and listing.
+   */
+  gpu: string | null;
+  /**
+   * How many Grid nodes run on this machine (GRID_SHARE). Each gives its containers that fraction of the
+   * memory and CPU, and lists that fraction of the RAM and disk.
+   */
+  share: number;
   stateDir: string;
   pollMs: number;
   /** SwarmMarket address, or null when swarm work is off or not deployed on this chain. */
@@ -31,6 +50,11 @@ export type Config = {
   swarmMinPriceWei: bigint;
   /** Tasks claimed per round. */
   swarmBatch: number;
+  /**
+   * Memory a swarm task may use, in MiB (GRID_SWARM_MEMORY_GB, default 8). A task that loads a large model
+   * needs about the model's size in RAM before it reaches the GPU. Never more than the host's share of the machine.
+   */
+  swarmMemoryMb: number;
   /** Let swarm containers reach the network (off by default). */
   swarmNetwork: boolean;
   /** Testing only: submit wrong results, to exercise the tie-break. */
@@ -109,6 +133,27 @@ export function loadConfig(): Config {
   const relay = process.env.GRID_RELAY === "1";
   if (relay && !publicUrl) throw new Error("GRID_RELAY=1 needs GRID_PUBLIC_URL: a relay must be reachable to forward for others");
 
+  const gpu = process.env.GRID_GPU?.trim() || null;
+  if (gpu !== null && !GPU_ID.test(gpu)) {
+    throw new Error(`GRID_GPU must be a GPU index (0, 1, ...) or a UUID (GPU-...) as "nvidia-smi -L" prints them, got "${gpu}"`);
+  }
+  const share = Number(env("GRID_SHARE", "1"));
+  if (!Number.isInteger(share) || share < 1 || share > 64) {
+    throw new Error(`GRID_SHARE is the number of Grid nodes on this machine, a whole number from 1 to 64, got "${process.env.GRID_SHARE}"`);
+  }
+  const privateKey = env("GRID_PRIVATE_KEY", chainId === 31337 ? ANVIL_HOST_KEY : undefined) as `0x${string}`;
+  let hostAddress: Address;
+  try {
+    hostAddress = privateKeyToAccount(privateKey).address;
+  } catch {
+    throw new Error("GRID_PRIVATE_KEY is not a private key: 0x followed by 64 hex characters");
+  }
+
+  const swarmMemoryGb = Number(env("GRID_SWARM_MEMORY_GB", "8"));
+  if (!(swarmMemoryGb >= 1 && swarmMemoryGb <= 2048)) {
+    throw new Error(`GRID_SWARM_MEMORY_GB is the memory a swarm task may use, from 1 to 2048 GB, got "${process.env.GRID_SWARM_MEMORY_GB}"`);
+  }
+
   const simulateEnv = process.env.GRID_SIMULATE;
   const simulate: Config["simulate"] =
     simulateEnv === undefined || simulateEnv === "" ? "auto" : simulateEnv === "1" || simulateEnv === "true";
@@ -135,7 +180,8 @@ export function loadConfig(): Config {
   return {
     chain,
     rpcUrl: env("GRID_RPC_URL", chain.rpcUrls.default.http[0]),
-    privateKey: env("GRID_PRIVATE_KEY", chainId === 31337 ? ANVIL_HOST_KEY : undefined) as `0x${string}`,
+    privateKey,
+    hostAddress,
     market,
     stake,
     // Never the computer's hostname by default: it is published on-chain and often carries a name.
@@ -143,19 +189,27 @@ export function loadConfig(): Config {
     pricePerHourWei,
     port,
     publicUrl,
+    direct: publicUrl !== null && process.env.GRID_DIRECT !== "0",
     sshHost: env("GRID_SSH_HOST", url?.hostname ?? ""),
     sshPort: Number(env("GRID_SSH_PORT", "2222")),
     simulate,
     dockerImage: env("GRID_DOCKER_IMAGE", "lscr.io/linuxserver/openssh-server:latest"),
+    gpu,
+    share,
     stateDir: resolve(env("GRID_STATE_DIR", ".grid")),
     pollMs: Number(env("GRID_POLL_SECONDS", "5")) * 1000,
     swarm: swarmAddress(deployment?.SwarmMarket),
     swarmMinPriceWei,
     swarmBatch: Math.min(32, Math.max(1, Number(env("GRID_SWARM_BATCH", "4")))),
+    swarmMemoryMb: Math.floor(swarmMemoryGb * 1024),
     swarmNetwork: process.env.GRID_SWARM_NETWORK === "1",
     swarmCheat: process.env.GRID_SWARM_CHEAT === "1",
     p2pPort,
-    p2pAnnounce: list(process.env.GRID_P2P_ANNOUNCE) ?? (url ? [announceFor(url.hostname, p2pPort)] : []),
+    // "none" publishes no address: for a host whose API goes through a tunnel and whose ports are closed.
+    p2pAnnounce:
+      process.env.GRID_P2P_ANNOUNCE === "none"
+        ? []
+        : (list(process.env.GRID_P2P_ANNOUNCE) ?? (url ? [announceFor(url.hostname, p2pPort)] : [])),
     p2pBootstrap: list(process.env.GRID_BOOTSTRAP) ?? [],
     relay,
     bindHost: env("GRID_BIND", "0.0.0.0"),

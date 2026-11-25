@@ -45,16 +45,24 @@ export class Chain {
    */
   async ensureListed(metadata: string, priceWei: bigint, available = true): Promise<bigint> {
     const state = readState(this.config.stateDir);
-    if (
+    const remembered =
       state &&
       state.chainId === this.config.chain.id &&
       state.market.toLowerCase() === this.config.market.toLowerCase() &&
       state.host.toLowerCase() === this.address.toLowerCase()
-    ) {
-      const id = BigInt(state.machineId);
+        ? BigInt(state.machineId)
+        : null;
+    // With no state file (a reinstall, a wallet moved to another machine) the chain still knows what this
+    // wallet listed: take that listing over instead of leaving a dead duplicate in the market.
+    const id = remembered ?? (await this.lastListed());
+    if (id !== null) {
       // A reset local chain can reuse the same addresses with no machines yet: a revert here means "relist".
       const m = await this.getMachine(id).catch(() => null);
       if (m && m.host.toLowerCase() === this.address.toLowerCase()) {
+        if (remembered === null) {
+          this.remember(id);
+          log(`found this wallet's listing #${id} on-chain — keeping it`);
+        }
         if (m.metadata !== metadata || m.pricePerHour !== priceWei || m.available !== available) {
           await this.send({ ...this.market, functionName: "updateMachine", args: [id, priceWei, available, metadata] });
           log(`refreshed listing #${id} (price or metadata changed)`);
@@ -66,16 +74,28 @@ export class Chain {
     const receipt = await this.send({ ...this.market, functionName: "listMachine", args: [priceWei, metadata] });
     const [listed] = parseEventLogs({ abi: gridMarketAbi, eventName: "MachineListed", logs: receipt.logs });
     if (!listed) throw new Error("listMachine succeeded but no MachineListed event was found");
-    const id = listed.args.machineId;
+    const listedId = listed.args.machineId;
+    this.remember(listedId);
+    // A new listing starts open; close it right away when this machine cannot take direct rentals.
+    if (!available) await this.setAvailable(listedId, false);
+    return listedId;
+  }
+
+  /** The newest machine this wallet has listed, or null. */
+  private async lastListed(): Promise<bigint | null> {
+    const ids = await this.publicClient
+      .readContract({ ...this.market, functionName: "machinesOf", args: [this.address] })
+      .catch(() => [] as readonly bigint[]);
+    return ids.length > 0 ? BigInt(ids[ids.length - 1]) : null;
+  }
+
+  private remember(id: bigint) {
     writeState(this.config.stateDir, {
       chainId: this.config.chain.id,
       market: this.config.market,
       host: this.address,
       machineId: id.toString(),
     });
-    // A new listing starts open; close it right away when this machine cannot take direct rentals.
-    if (!available) await this.setAvailable(id, false);
-    return id;
   }
 
   /**
